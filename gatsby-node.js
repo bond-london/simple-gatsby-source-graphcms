@@ -1,13 +1,35 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import { wrapQueryExecutorWithQueue, loadSchema, readOrGenerateDefaultFragments, compileNodeQueries, buildNodeDefinitions, createSchemaCustomization as createToolkitSchemaCustomization, sourceAllNodes, sourceNodeChanges } from 'gatsby-graphql-source-toolkit';
-import { generateImageData } from 'gatsby-plugin-image';
-import { getGatsbyImageResolver } from 'gatsby-plugin-image/graphql-utils';
-import { createRemoteFileNode } from 'gatsby-source-filesystem';
-import he from 'he';
-import fetch from 'node-fetch';
-export function pluginOptionsSchema({
+"use strict";
+
+var _interopRequireDefault = require("@babel/runtime/helpers/interopRequireDefault");
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.pluginOptionsSchema = pluginOptionsSchema;
+exports.sourceNodes = sourceNodes;
+exports.onCreateNode = onCreateNode;
+exports.createSchemaCustomization = createSchemaCustomization;
+exports.createResolvers = createResolvers;
+
+var _crypto = _interopRequireDefault(require("crypto"));
+
+var _fs = _interopRequireDefault(require("fs"));
+
+var _path = _interopRequireDefault(require("path"));
+
+var _gatsbyGraphqlSourceToolkit = require("gatsby-graphql-source-toolkit");
+
+var _gatsbyPluginImage = require("gatsby-plugin-image");
+
+var _graphqlUtils = require("gatsby-plugin-image/graphql-utils");
+
+var _gatsbySourceFilesystem = require("gatsby-source-filesystem");
+
+var _he = _interopRequireDefault(require("he"));
+
+var _nodeFetch = _interopRequireDefault(require("node-fetch"));
+
+function pluginOptionsSchema({
   Joi
 }) {
   return Joi.object({
@@ -38,7 +60,7 @@ const createSourcingConfig = async (gatsbyApi, {
     const {
       reporter
     } = gatsbyApi;
-    return await fetch(endpoint, {
+    return await (0, _nodeFetch.default)(endpoint, {
       method: 'POST',
       body: JSON.stringify({
         query,
@@ -68,7 +90,7 @@ const createSourcingConfig = async (gatsbyApi, {
     });
   };
 
-  const schema = await loadSchema(execute);
+  const schema = await (0, _gatsbyGraphqlSourceToolkit.loadSchema)(execute);
   const nodeInterface = schema.getType('Node');
   const query = schema.getType('Query');
   const queryFields = query.getFields();
@@ -109,7 +131,7 @@ const createSourcingConfig = async (gatsbyApi, {
     })
   }));
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
-  if (!fs.existsSync(fragmentsDir)) fs.mkdirSync(fragmentsDir);
+  if (!_fs.default.existsSync(fragmentsDir)) _fs.default.mkdirSync(fragmentsDir);
 
   const addSystemFieldArguments = field => {
     if (['createdAt', 'publishedAt', 'updatedAt'].includes(field.name)) return {
@@ -117,12 +139,12 @@ const createSourcingConfig = async (gatsbyApi, {
     };
   };
 
-  const fragments = await readOrGenerateDefaultFragments(fragmentsDir, {
+  const fragments = await (0, _gatsbyGraphqlSourceToolkit.readOrGenerateDefaultFragments)(fragmentsDir, {
     schema,
     gatsbyNodeTypes,
     defaultArgumentValues: [addSystemFieldArguments]
   });
-  const documents = compileNodeQueries({
+  const documents = (0, _gatsbyGraphqlSourceToolkit.compileNodeQueries)({
     schema,
     gatsbyNodeTypes,
     customFragments: fragments
@@ -130,23 +152,23 @@ const createSourcingConfig = async (gatsbyApi, {
   return {
     gatsbyApi,
     schema,
-    execute: wrapQueryExecutorWithQueue(execute, {
+    execute: (0, _gatsbyGraphqlSourceToolkit.wrapQueryExecutorWithQueue)(execute, {
       concurrency: 10
     }),
     gatsbyTypePrefix: typePrefix,
-    gatsbyNodeDefs: buildNodeDefinitions({
+    gatsbyNodeDefs: (0, _gatsbyGraphqlSourceToolkit.buildNodeDefinitions)({
       gatsbyNodeTypes,
       documents
     })
   };
 };
 
-export async function sourceNodes(gatsbyApi, pluginOptions) {
+async function sourceNodes(gatsbyApi, pluginOptions) {
   const {
     webhookBody
   } = gatsbyApi;
   const config = await createSourcingConfig(gatsbyApi, pluginOptions);
-  await createToolkitSchemaCustomization(config);
+  await (0, _gatsbyGraphqlSourceToolkit.createSchemaCustomization)(config);
 
   if (webhookBody && Object.keys(webhookBody).length) {
     const {
@@ -192,7 +214,7 @@ export async function sourceNodes(gatsbyApi, pluginOptions) {
         locale: 'en'
       }]
     } = data;
-    await sourceNodeChanges(config, {
+    await (0, _gatsbyGraphqlSourceToolkit.sourceNodeChanges)(config, {
       nodeEvents: localizations.map(({
         locale
       }) => nodeEvent(operation, {
@@ -201,10 +223,11 @@ export async function sourceNodes(gatsbyApi, pluginOptions) {
       }))
     });
   } else {
-    await sourceAllNodes(config);
+    await (0, _gatsbyGraphqlSourceToolkit.sourceAllNodes)(config);
   }
 }
-export async function onCreateNode({
+
+async function onCreateNode({
   node,
   actions: {
     createNode
@@ -218,7 +241,7 @@ export async function onCreateNode({
 }) {
   if (downloadLocalImages && node.remoteTypeName === 'Asset' && node.mimeType.includes('image/')) {
     try {
-      const fileNode = await createRemoteFileNode({
+      const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
         url: node.url,
         parentNodeId: node.id,
         createNode,
@@ -226,7 +249,7 @@ export async function onCreateNode({
         getCache,
         ...(node.fileName && {
           name: node.fileName,
-          ext: path.extname(node.fileName)
+          ext: _path.default.extname(node.fileName)
         })
       });
       if (fileNode) node.localFile = fileNode.id;
@@ -245,7 +268,8 @@ export async function onCreateNode({
 
     if (fields.length) {
       fields.forEach(field => {
-        const decodedMarkdown = he.decode(field.value.markdown);
+        const decodedMarkdown = _he.default.decode(field.value.markdown);
+
         const markdownNode = {
           id: `MarkdownNode:${createNodeId(`${node.id}-${field.key}`)}`,
           parent: node.id,
@@ -253,7 +277,7 @@ export async function onCreateNode({
             type: `${typePrefix}MarkdownNode`,
             mediaType: 'text/markdown',
             content: decodedMarkdown,
-            contentDigest: crypto.createHash(`md5`).update(decodedMarkdown).digest(`hex`)
+            contentDigest: _crypto.default.createHash(`md5`).update(decodedMarkdown).digest(`hex`)
           }
         };
         createNode(markdownNode);
@@ -262,7 +286,8 @@ export async function onCreateNode({
     }
   }
 }
-export function createSchemaCustomization({
+
+function createSchemaCustomization({
   actions: {
     createTypes
   }
@@ -315,10 +340,10 @@ const resolveGatsbyImageData = async ({
     generateImageSource,
     options
   };
-  return generateImageData(imageDataArgs);
+  return (0, _gatsbyPluginImage.generateImageData)(imageDataArgs);
 };
 
-export function createResolvers({
+function createResolvers({
   createResolvers
 }, {
   typePrefix = 'GraphCMS_'
@@ -326,7 +351,7 @@ export function createResolvers({
   const typeName = `${typePrefix}Asset`;
   createResolvers({
     [typeName]: {
-      gatsbyImageData: getGatsbyImageResolver(resolveGatsbyImageData, {
+      gatsbyImageData: (0, _graphqlUtils.getGatsbyImageResolver)(resolveGatsbyImageData, {
         quality: {
           type: 'Int',
           description: 'The default image quality generated. This is overridden by any format-specific options.'
