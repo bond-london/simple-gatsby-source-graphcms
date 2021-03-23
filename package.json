@@ -1,0 +1,34 @@
+{
+  "name": "bond-gatsby-source-graphcms",
+  "version": "3.0.0",
+  "description": "The official Gatsby source plugin for GraphCMS projects",
+  "main": "index.js",
+  "scripts": {
+    "build": "babel src --out-dir ./ --source-maps"
+  },
+  "keywords": [
+    "data",
+    "gatsby",
+    "gatsby-plugin",
+    "graphcms",
+    "graphql",
+    "source"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@babel/runtime": "^7.13.10",
+    "gatsby-graphql-source-toolkit": "^1.0.0",
+    "gatsby-source-filesystem": "^3.1.0",
+    "he": "1.2.0",
+    "node-fetch": "2.6.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "7.13.10",
+    "@babel/core": "7.13.10",
+    "@babel/plugin-transform-runtime": "7.13.10",
+    "@babel/preset-env": "^7.13.10"
+  },
+  "peerDependencies": {
+    "gatsby-plugin-image": "1.1.0"
+  }
+}
