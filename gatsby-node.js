@@ -35,10 +35,11 @@ function pluginOptionsSchema({
   return Joi.object({
     buildMarkdownNodes: Joi.boolean().description(`Build markdown nodes for all [RichText](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema`).default(false),
     downloadLocalImages: Joi.boolean().description(`Download and cache GraphCMS image assets in your Gatsby project`).default(false),
+    downloadAllAssets: Joi.boolean().description(`Download and cache all GraphCMS assets in your Gatsby project`).default(false),
     endpoint: Joi.string().description(`The endpoint URL for the GraphCMS project. This can be found in the [project settings UI](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`).required(),
     fragmentsPath: Joi.string().description(`The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts.`).default(`graphcms-fragments`),
-    locales: Joi.array().description(`An array of locale key strings from your GraphCMS project. You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).`).items(Joi.string()).min(1).default(['en']),
-    stages: Joi.array().description(`An array of Content Stages from your GraphCMS project. You can read more about using Content Stages [here](https://graphcms.com/guides/working-with-content-stages).`).items(Joi.string()).min(1).default(['PUBLISHED']),
+    locales: Joi.array().description(`An array of locale key strings from your GraphCMS project. You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).`).items(Joi.string()).min(1).default(["en"]),
+    stages: Joi.array().description(`An array of Content Stages from your GraphCMS project. You can read more about using Content Stages [here](https://graphcms.com/guides/working-with-content-stages).`).items(Joi.string()).min(1).default(["PUBLISHED"]),
     token: Joi.string().description(`If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`),
     typePrefix: Joi.string().description(`The string by which every generated type name is prefixed with. For example, a type of Post in GraphCMS would become GraphCMS_Post by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts`).default(`GraphCMS_`)
   });
@@ -61,14 +62,14 @@ const createSourcingConfig = async (gatsbyApi, {
       reporter
     } = gatsbyApi;
     return await (0, _nodeFetch.default)(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         query,
         variables,
         operationName
       }),
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(token && {
           Authorization: `Bearer ${token}`
         })
@@ -91,8 +92,8 @@ const createSourcingConfig = async (gatsbyApi, {
   };
 
   const schema = await (0, _gatsbyGraphqlSourceToolkit.loadSchema)(execute);
-  const nodeInterface = schema.getType('Node');
-  const query = schema.getType('Query');
+  const nodeInterface = schema.getType("Node");
+  const query = schema.getType("Query");
   const queryFields = query.getFields();
   const possibleTypes = schema.getPossibleTypes(nodeInterface);
 
@@ -105,19 +106,19 @@ const createSourcingConfig = async (gatsbyApi, {
   const gatsbyNodeTypes = possibleTypes.map(type => ({
     remoteTypeName: type.name,
     queries: [...locales.map(locale => stages.map(stage => `
-          query LIST_${pluralRootFieldName(type)}_${locale}_${stage} { ${pluralRootFieldName(type)}(first: $limit, ${hasLocaleField(type) ? `locales: [${locale}]` : ''}, skip: $offset, stage: ${stage}) {
+          query LIST_${pluralRootFieldName(type)}_${locale}_${stage} { ${pluralRootFieldName(type)}(first: $limit, ${hasLocaleField(type) ? `locales: [${locale}]` : ""}, skip: $offset, stage: ${stage}) {
               ..._${type.name}Id_
             }
-          }`)), `query NODE_${singularRootFieldName(type)}{ ${singularRootFieldName(type)}(where: $where, ${hasLocaleField(type) ? `locales: $locales` : ''}) {
+          }`)), `query NODE_${singularRootFieldName(type)}{ ${singularRootFieldName(type)}(where: $where, ${hasLocaleField(type) ? `locales: $locales` : ""}) {
         ..._${type.name}Id_
         }
       }
       fragment _${type.name}Id_ on ${type.name} {
         __typename
         id
-        ${hasLocaleField(type) ? `locale` : ''}
+        ${hasLocaleField(type) ? `locale` : ""}
         stage
-      }`].join('\n'),
+      }`].join("\n"),
     nodeQueryVariables: ({
       id,
       locale,
@@ -134,7 +135,7 @@ const createSourcingConfig = async (gatsbyApi, {
   if (!_fs.default.existsSync(fragmentsDir)) _fs.default.mkdirSync(fragmentsDir);
 
   const addSystemFieldArguments = field => {
-    if (['createdAt', 'publishedAt', 'updatedAt'].includes(field.name)) return {
+    if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) return {
       variation: `COMBINED`
     };
   };
@@ -182,10 +183,10 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
       id
     }) => {
       switch (operation) {
-        case 'delete':
-        case 'unpublish':
+        case "delete":
+        case "unpublish":
           return {
-            eventName: 'DELETE',
+            eventName: "DELETE",
             remoteTypeName: __typename,
             remoteId: {
               __typename,
@@ -194,11 +195,11 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
             }
           };
 
-        case 'create':
-        case 'publish':
-        case 'update':
+        case "create":
+        case "publish":
+        case "update":
           return {
-            eventName: 'UPDATE',
+            eventName: "UPDATE",
             remoteTypeName: __typename,
             remoteId: {
               __typename,
@@ -211,7 +212,7 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
 
     const {
       localizations = [{
-        locale: 'en'
+        locale: "en"
       }]
     } = data;
     await (0, _gatsbyGraphqlSourceToolkit.sourceNodeChanges)(config, {
@@ -237,9 +238,10 @@ async function onCreateNode({
 }, {
   buildMarkdownNodes = false,
   downloadLocalImages = false,
-  typePrefix = 'GraphCMS_'
+  downloadAllAssets = false,
+  typePrefix = "GraphCMS_"
 }) {
-  if (downloadLocalImages && node.remoteTypeName === 'Asset' && node.mimeType.includes('image/')) {
+  if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && node.mimeType.includes("image/"))) {
     try {
       const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
         url: node.url,
@@ -254,7 +256,7 @@ async function onCreateNode({
       });
       if (fileNode) node.localFile = fileNode.id;
     } catch (e) {
-      console.error('gatsby-source-graphcms:', e);
+      console.error("gatsby-source-graphcms:", e);
     }
   }
 
@@ -264,7 +266,7 @@ async function onCreateNode({
       value
     })).filter(({
       value
-    }) => value && value.remoteTypeName && value.remoteTypeName === 'RichText');
+    }) => value && value.remoteTypeName && value.remoteTypeName === "RichText");
 
     if (fields.length) {
       fields.forEach(field => {
@@ -275,7 +277,7 @@ async function onCreateNode({
           parent: node.id,
           internal: {
             type: `${typePrefix}MarkdownNode`,
-            mediaType: 'text/markdown',
+            mediaType: "text/markdown",
             content: decodedMarkdown,
             contentDigest: _crypto.default.createHash(`md5`).update(decodedMarkdown).digest(`hex`)
           }
@@ -294,9 +296,10 @@ function createSchemaCustomization({
 }, {
   buildMarkdownNodes = false,
   downloadLocalImages = false,
-  typePrefix = 'GraphCMS_'
+  downloadAllAssets = false,
+  typePrefix = "GraphCMS_"
 }) {
-  if (downloadLocalImages) createTypes(`
+  if (downloadLocalImages || downloadAllAssets) createTypes(`
       type ${typePrefix}Asset {
         localFile: File @link
       }
@@ -311,7 +314,7 @@ function createSchemaCustomization({
     `);
 }
 
-const generateImageSource = (baseURL, width, height, format, fit = 'clip', {
+const generateImageSource = (baseURL, width, height, format, fit = "clip", {
   quality = 100
 }) => {
   const src = `https://media.graphcms.com/resize=width:${width},height:${height},fit:${fit}/output=quality:${quality}/${baseURL}`;
@@ -332,7 +335,7 @@ const resolveGatsbyImageData = async ({
   const imageDataArgs = { ...options,
     pluginName: `gatsby-source-graphcms`,
     sourceMetadata: {
-      format: mimeType.split('/')[1],
+      format: mimeType.split("/")[1],
       height,
       width
     },
@@ -346,15 +349,15 @@ const resolveGatsbyImageData = async ({
 function createResolvers({
   createResolvers
 }, {
-  typePrefix = 'GraphCMS_'
+  typePrefix = "GraphCMS_"
 }) {
   const typeName = `${typePrefix}Asset`;
   createResolvers({
     [typeName]: {
       gatsbyImageData: (0, _graphqlUtils.getGatsbyImageResolver)(resolveGatsbyImageData, {
         quality: {
-          type: 'Int',
-          description: 'The default image quality generated. This is overridden by any format-specific options.'
+          type: "Int",
+          description: "The default image quality generated. This is overridden by any format-specific options."
         }
       })
     }

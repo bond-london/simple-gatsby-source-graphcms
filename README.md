@@ -57,6 +57,7 @@ module.exports = {
 | `token`               | String                                   | If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis). |
 | `typePrefix`          | String _(Default: `GraphCMS_`)\_         | The string by which every generated type name is prefixed with. For example, a type of `Post` in GraphCMS would become `GraphCMS_Post` by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts.                                                                      |
 | `downloadLocalImages` | Boolean _(Default: `false`)_             | Download and cache GraphCMS image assets in your Gatsby project. [Learn more](#downloading-local-image-assets).                                                                                                                                                                                                                        |
+| `downloadAllAssets`   | Boolean _(Default: `false`)_             | Download and cache all GraphCMS assets in your Gatsby project. [Learn more](#downloading-local-image-assets).                                                                                                                                                                                                                          |
 | `buildMarkdownNodes`  | Boolean _(Default: `false`)_             | Build markdown nodes for all [`RichText`](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema. [Learn more](#using-markdown-nodes).                                                                                                                                                                   |
 | `fragmentsPath`       | String _(Default: `graphcms-fragments`)_ | The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts.                                                                                   |
 | `locales`             | String _(Default: `['en']`)_             | An array of locale key strings from your GraphCMS project. [Learn more](#querying-localised-nodes). You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).                                                                                                              |
@@ -179,7 +180,7 @@ For more information on using `gatsby-plugin-image`, please see the [documentati
 
 If you prefer, the source plugin also provides the option to download and cache GraphCMS assets in your Gatsby project.
 
-To enable this, add `downloadLocalImages: true` to your plugin configuration.
+To enable this, add `downloadLocalImages: true` to your plugin configuration. This downloads all assets with a mime type starting with 'image/'. To download all assets, add `downloadAllAssets: true` to the configuration.
 
 ```js
 // gatsby-config.js
