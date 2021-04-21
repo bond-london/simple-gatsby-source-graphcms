@@ -73,7 +73,7 @@ const createSourcingConfig = async (
   gatsbyApi,
   { endpoint, fragmentsPath, locales, stages, token, typePrefix }
 ) => {
-  const defaultStage = stages && stages.length && stages[0];
+  const defaultStage = stages && stages.length === 1 && stages[0];
 
   const execute = async ({ operationName, query, variables = {} }) => {
     const { reporter } = gatsbyApi;

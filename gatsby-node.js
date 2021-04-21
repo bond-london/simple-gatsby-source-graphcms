@@ -53,7 +53,7 @@ const createSourcingConfig = async (gatsbyApi, {
   token,
   typePrefix
 }) => {
-  const defaultStage = stages && stages.length && stages[0];
+  const defaultStage = stages && stages.length === 1 && stages[0];
 
   const execute = async ({
     operationName,
