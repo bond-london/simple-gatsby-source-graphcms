@@ -53,6 +53,8 @@ const createSourcingConfig = async (gatsbyApi, {
   token,
   typePrefix
 }) => {
+  const defaultStage = stages && stages.length && stages[0];
+
   const execute = async ({
     operationName,
     query,
@@ -70,6 +72,9 @@ const createSourcingConfig = async (gatsbyApi, {
       }),
       headers: {
         "Content-Type": "application/json",
+        ...(defaultStage && {
+          "gcms-stage": defaultStage
+        }),
         ...(token && {
           Authorization: `Bearer ${token}`
         })

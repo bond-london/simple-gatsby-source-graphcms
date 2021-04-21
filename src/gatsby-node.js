@@ -73,6 +73,8 @@ const createSourcingConfig = async (
   gatsbyApi,
   { endpoint, fragmentsPath, locales, stages, token, typePrefix }
 ) => {
+  const defaultStage = stages && stages.length && stages[0];
+
   const execute = async ({ operationName, query, variables = {} }) => {
     const { reporter } = gatsbyApi;
 
@@ -81,6 +83,7 @@ const createSourcingConfig = async (
       body: JSON.stringify({ query, variables, operationName }),
       headers: {
         "Content-Type": "application/json",
+        ...(defaultStage && { "gcms-stage": defaultStage }),
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     })
