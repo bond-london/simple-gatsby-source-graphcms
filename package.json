@@ -1,6 +1,6 @@
 {
   "name": "bond-gatsby-source-graphcms",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "The official Gatsby source plugin for GraphCMS projects",
   "main": "index.js",
   "scripts": {

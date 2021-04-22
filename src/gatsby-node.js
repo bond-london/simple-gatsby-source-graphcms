@@ -73,11 +73,15 @@ const createSourcingConfig = async (
   gatsbyApi,
   { endpoint, fragmentsPath, locales, stages, token, typePrefix }
 ) => {
+  const { reporter } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.info(`no default stage for GraphCMS`);
+  }
 
   const execute = async ({ operationName, query, variables = {} }) => {
-    const { reporter } = gatsbyApi;
-
     return await fetch(endpoint, {
       method: "POST",
       body: JSON.stringify({ query, variables, operationName }),
