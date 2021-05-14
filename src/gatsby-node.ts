@@ -9,15 +9,26 @@ import {
   buildNodeDefinitions,
   createSchemaCustomization as createToolkitSchemaCustomization,
   sourceAllNodes,
-  sourceNodeChanges,
 } from "gatsby-graphql-source-toolkit";
-import { generateImageData } from "gatsby-plugin-image";
-import { getGatsbyImageResolver } from "gatsby-plugin-image/graphql-utils";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
-import he from "he";
+import { decode } from "he";
 import fetch from "node-fetch";
+import { ObjectSchema } from "gatsby-plugin-utils";
+import {
+  CreateNodeArgs,
+  CreateSchemaCustomizationArgs,
+  Node,
+  PluginOptions,
+  PluginOptionsSchemaArgs,
+  SourceNodesArgs,
+} from "gatsby";
+import { GraphQLAbstractType, GraphQLInterfaceType } from "graphql";
+import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 
-export function pluginOptionsSchema({ Joi }) {
+export function pluginOptionsSchema(
+  args: PluginOptionsSchemaArgs
+): ObjectSchema {
+  const { Joi } = args;
   return Joi.object({
     buildMarkdownNodes: Joi.boolean()
       .description(
@@ -69,10 +80,24 @@ export function pluginOptionsSchema({ Joi }) {
   });
 }
 
-const createSourcingConfig = async (
-  gatsbyApi,
-  { endpoint, fragmentsPath, locales, stages, token, typePrefix }
-) => {
+interface RealPluginOptions extends PluginOptions {
+  buildMarkdownNodes: boolean;
+  downloadLocalImages: boolean;
+  downloadAllAssets: boolean;
+  endpoint: string;
+  fragmentsPath: string;
+  stages: string[];
+  token: string;
+  typePrefix: string;
+  locales: string[];
+}
+
+async function createSourcingConfig(
+  gatsbyApi: SourceNodesArgs,
+  pluginOptions: RealPluginOptions
+) {
+  const { endpoint, fragmentsPath, locales, stages, token, typePrefix } =
+    pluginOptions;
   const { reporter } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
   if (defaultStage) {
@@ -120,8 +145,8 @@ const createSourcingConfig = async (
   };
   const schema = await loadSchema(execute);
 
-  const nodeInterface = schema.getType("Node");
-  const query = schema.getType("Query");
+  const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
+  const query = schema.getType("Query") as GraphQLInterfaceType;
   const queryFields = query.getFields();
   const possibleTypes = schema.getPossibleTypes(nodeInterface);
 
@@ -137,7 +162,7 @@ const createSourcingConfig = async (
 
   const hasLocaleField = (type) => type.getFields().locale;
 
-  const gatsbyNodeTypes = possibleTypes.map((type) => ({
+  const gatsbyNodeTypes: IGatsbyNodeConfig[] = possibleTypes.map((type) => ({
     remoteTypeName: type.name,
     queries: [
       ...locales.map((locale) =>
@@ -201,59 +226,43 @@ const createSourcingConfig = async (
     gatsbyTypePrefix: typePrefix,
     gatsbyNodeDefs: buildNodeDefinitions({ gatsbyNodeTypes, documents }),
   };
-};
+}
 
-export async function sourceNodes(gatsbyApi, pluginOptions) {
-  const { webhookBody } = gatsbyApi;
-
+export async function sourceNodes(
+  gatsbyApi: SourceNodesArgs,
+  pluginOptions: RealPluginOptions
+) {
   const config = await createSourcingConfig(gatsbyApi, pluginOptions);
 
   await createToolkitSchemaCustomization(config);
 
-  if (webhookBody && Object.keys(webhookBody).length) {
-    const { operation, data } = webhookBody;
-
-    const nodeEvent = (operation, { __typename, locale, id }) => {
-      switch (operation) {
-        case "delete":
-        case "unpublish":
-          return {
-            eventName: "DELETE",
-            remoteTypeName: __typename,
-            remoteId: { __typename, locale, id },
-          };
-        case "create":
-        case "publish":
-        case "update":
-          return {
-            eventName: "UPDATE",
-            remoteTypeName: __typename,
-            remoteId: { __typename, locale, id },
-          };
-      }
-    };
-
-    const { localizations = [{ locale: "en" }] } = data;
-
-    await sourceNodeChanges(config, {
-      nodeEvents: localizations.map(({ locale }) =>
-        nodeEvent(operation, { locale, ...data })
-      ),
-    });
-  } else {
-    await sourceAllNodes(config);
-  }
+  await sourceAllNodes(config);
 }
-
+type GraphCMS_Node = Node & {
+  mimeType: string;
+  url: string;
+  fileName: string;
+  remoteTypeName?: string;
+  markdown?: string;
+};
 export async function onCreateNode(
-  { node, actions: { createNode }, createNodeId, getCache },
+  args: CreateNodeArgs<GraphCMS_Node>,
   {
     buildMarkdownNodes = false,
     downloadLocalImages = false,
     downloadAllAssets = false,
     typePrefix = "GraphCMS_",
-  }
+  }: RealPluginOptions
 ) {
+  const {
+    node,
+    actions: { createNode },
+    createNodeId,
+    cache,
+    store,
+    reporter,
+  } = args;
+
   if (
     node.remoteTypeName === "Asset" &&
     (downloadAllAssets ||
@@ -265,7 +274,9 @@ export async function onCreateNode(
         parentNodeId: node.id,
         createNode,
         createNodeId,
-        getCache,
+        cache,
+        store,
+        reporter,
         ...(node.fileName && {
           name: node.fileName,
           ext: path.extname(node.fileName),
@@ -282,13 +293,12 @@ export async function onCreateNode(
     const fields = Object.entries(node)
       .map(([key, value]) => ({ key, value }))
       .filter(
-        ({ value }) =>
-          value && value.remoteTypeName && value.remoteTypeName === "RichText"
+        ({ value }) => value && (value as any)?.remoteTypeName === "RichText"
       );
 
     if (fields.length) {
       fields.forEach((field) => {
-        const decodedMarkdown = he.decode(field.value.markdown);
+        const decodedMarkdown: string = decode((field.value as any).markdown);
 
         const markdownNode = {
           id: `MarkdownNode:${createNodeId(`${node.id}-${field.key}`)}`,
@@ -306,20 +316,20 @@ export async function onCreateNode(
 
         createNode(markdownNode);
 
-        field.value.markdownNode = markdownNode.id;
+        (field.value as any).markdownNode = markdownNode.id;
       });
     }
   }
 }
 
 export function createSchemaCustomization(
-  { actions: { createTypes } },
+  { actions: { createTypes } }: CreateSchemaCustomizationArgs,
   {
     buildMarkdownNodes = false,
     downloadLocalImages = false,
     downloadAllAssets = false,
     typePrefix = "GraphCMS_",
-  }
+  }: RealPluginOptions
 ) {
   if (downloadLocalImages || downloadAllAssets)
     createTypes(`
@@ -337,52 +347,4 @@ export function createSchemaCustomization(
         markdownNode: ${typePrefix}MarkdownNode @link
       }
     `);
-}
-
-const generateImageSource = (
-  baseURL,
-  width,
-  height,
-  format,
-  fit = "clip",
-  { quality = 100 }
-) => {
-  const src = `https://media.graphcms.com/resize=width:${width},height:${height},fit:${fit}/output=quality:${quality}/${baseURL}`;
-
-  return { src, width, height, format };
-};
-
-const resolveGatsbyImageData = async (
-  { handle: filename, height, mimeType, width },
-  options
-) => {
-  const imageDataArgs = {
-    ...options,
-    pluginName: `gatsby-source-graphcms`,
-    sourceMetadata: { format: mimeType.split("/")[1], height, width },
-    filename,
-    generateImageSource,
-    options,
-  };
-
-  return generateImageData(imageDataArgs);
-};
-
-export function createResolvers(
-  { createResolvers },
-  { typePrefix = "GraphCMS_" }
-) {
-  const typeName = `${typePrefix}Asset`;
-
-  createResolvers({
-    [typeName]: {
-      gatsbyImageData: getGatsbyImageResolver(resolveGatsbyImageData, {
-        quality: {
-          type: "Int",
-          description:
-            "The default image quality generated. This is overridden by any format-specific options.",
-        },
-      }),
-    },
-  });
 }

@@ -1,10 +1,10 @@
 {
-  "name": "bond-gatsby-source-graphcms",
-  "version": "3.0.6",
-  "description": "The official Gatsby source plugin for GraphCMS projects",
+  "name": "simple-gatsby-source-graphcms",
+  "version": "1.0.0",
+  "description": "Simple version of the official Gatsby source plugin for GraphCMS projects",
   "main": "index.js",
   "scripts": {
-    "build": "babel src --out-dir ./ --source-maps"
+    "build": "babel src --out-dir ./ --source-maps --extensions .ts"
   },
   "keywords": [
     "data",
@@ -16,19 +16,21 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@babel/runtime": "^7.13.10",
-    "gatsby-graphql-source-toolkit": "^1.0.0",
-    "gatsby-source-filesystem": "^3.1.0",
+    "@babel/preset-typescript": "^7.13.0",
+    "@babel/runtime": "^7.14.0",
+    "babel-preset-gatsby-package": "^1.5.0",
+    "gatsby-graphql-source-toolkit": "^2.0.1",
+    "gatsby-plugin-image": "^1.5.0",
+    "gatsby-source-filesystem": "^3.5.0",
     "he": "1.2.0",
     "node-fetch": "2.6.1"
   },
   "devDependencies": {
     "@babel/cli": "7.13.16",
-    "@babel/core": "7.13.16",
-    "@babel/plugin-transform-runtime": "7.13.15",
-    "@babel/preset-env": "^7.13.10"
+    "@babel/core": "7.14.2",
+    "@babel/plugin-transform-runtime": "7.14.2",
+    "@babel/preset-env": "^7.14.2",
+    "gatsby": "^3.5.0"
   },
-  "peerDependencies": {
-    "gatsby-plugin-image": "^1.3.1"
-  }
+  "peerDependencies": {}
 }

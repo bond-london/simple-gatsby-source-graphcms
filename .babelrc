@@ -1,5 +1,7 @@
 {
   "presets": [
+    "@babel/preset-typescript",
+    ["babel-preset-gatsby-package"],
     [
       "@babel/preset-env",
       {
@@ -9,8 +11,6 @@
       }
     ]
   ],
-  "plugins": [
-    "@babel/plugin-transform-runtime"
-  ],
+  "plugins": ["@babel/plugin-transform-runtime"],
   "only": ["src/", "test/"]
 }
