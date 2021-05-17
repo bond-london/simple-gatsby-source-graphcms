@@ -190,7 +190,7 @@ async function onCreateNode(args, {
       createNode
     },
     createNodeId,
-    cache,
+    getCache,
     store,
     reporter
   } = args;
@@ -202,7 +202,8 @@ async function onCreateNode(args, {
         parentNodeId: node.id,
         createNode,
         createNodeId,
-        cache,
+        getCache,
+        cache: undefined,
         store,
         reporter,
         ...(node.fileName && {

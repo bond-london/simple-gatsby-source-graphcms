@@ -258,7 +258,7 @@ export async function onCreateNode(
     node,
     actions: { createNode },
     createNodeId,
-    cache,
+    getCache,
     store,
     reporter,
   } = args;
@@ -274,14 +274,15 @@ export async function onCreateNode(
         parentNodeId: node.id,
         createNode,
         createNodeId,
-        cache,
+        getCache,
+        cache: undefined,
         store,
         reporter,
         ...(node.fileName && {
           name: node.fileName,
           ext: path.extname(node.fileName),
         }),
-      });
+      } as any);
 
       if (fileNode) node.localFile = fileNode.id;
     } catch (e) {
