@@ -197,6 +197,10 @@ async function onCreateNode(args, {
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && node.mimeType.includes("image/"))) {
     try {
+      const ext = node.fileName && _path.default.extname(node.fileName);
+
+      const name = node.fileName && _path.default.basename(node.fileName, ext);
+
       const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
         url: node.url,
         parentNodeId: node.id,
@@ -206,10 +210,8 @@ async function onCreateNode(args, {
         cache: undefined,
         store,
         reporter,
-        ...(node.fileName && {
-          name: node.fileName,
-          ext: _path.default.extname(node.fileName)
-        })
+        name,
+        ext
       });
       if (fileNode) node.localFile = fileNode.id;
     } catch (e) {
