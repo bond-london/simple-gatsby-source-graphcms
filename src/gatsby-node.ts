@@ -269,6 +269,8 @@ export async function onCreateNode(
       (downloadLocalImages && node.mimeType.includes("image/")))
   ) {
     try {
+      const ext = node.fileName && path.extname(node.fileName);
+      const name = node.fileName && path.basename(node.fileName, ext);
       const fileNode = await createRemoteFileNode({
         url: node.url,
         parentNodeId: node.id,
@@ -278,10 +280,8 @@ export async function onCreateNode(
         cache: undefined,
         store,
         reporter,
-        ...(node.fileName && {
-          name: node.fileName,
-          ext: path.extname(node.fileName),
-        }),
+        name,
+        ext,
       } as any);
 
       if (fileNode) node.localFile = fileNode.id;
