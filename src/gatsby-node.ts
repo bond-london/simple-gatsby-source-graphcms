@@ -18,12 +18,26 @@ import {
   CreateNodeArgs,
   CreateSchemaCustomizationArgs,
   Node,
+  NodePluginArgs,
+  ParentSpanPluginArgs,
   PluginOptions,
   PluginOptionsSchemaArgs,
   SourceNodesArgs,
 } from "gatsby";
-import { GraphQLAbstractType, GraphQLInterfaceType } from "graphql";
-import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
+import {
+  GraphQLAbstractType,
+  GraphQLInterfaceType,
+  GraphQLSchema,
+} from "graphql";
+import {
+  IGatsbyNodeConfig,
+  IGatsbyNodeDefinition,
+  IQueryExecutor,
+  ISourcingConfig,
+  RemoteTypeName,
+} from "gatsby-graphql-source-toolkit/dist/types";
+
+const SchemaConfigCacheKey = "CachedInformation";
 
 export function pluginOptionsSchema(
   args: PluginOptionsSchemaArgs
@@ -92,10 +106,10 @@ interface RealPluginOptions extends PluginOptions {
   locales: string[];
 }
 
-async function createSourcingConfig(
-  gatsbyApi: SourceNodesArgs,
+function createExecutor(
+  gatsbyApi: NodePluginArgs,
   pluginOptions: RealPluginOptions
-) {
+): IQueryExecutor {
   const { endpoint, fragmentsPath, locales, stages, token, typePrefix } =
     pluginOptions;
   const { reporter } = gatsbyApi;
@@ -105,7 +119,6 @@ async function createSourcingConfig(
   } else {
     reporter.info(`no default stage for GraphCMS`);
   }
-
   const execute = async ({ operationName, query, variables = {} }) => {
     return await fetch(endpoint, {
       method: "POST",
@@ -143,6 +156,20 @@ async function createSourcingConfig(
         );
       });
   };
+  return execute;
+}
+
+interface ISchemaInformation {
+  schema: GraphQLSchema;
+  gatsbyNodeTypes: IGatsbyNodeConfig[];
+}
+
+async function retrieveSchema(
+  gatsbyApi: NodePluginArgs,
+  pluginOptions: RealPluginOptions
+): Promise<ISchemaInformation> {
+  const { locales, stages } = pluginOptions;
+  const execute = createExecutor(gatsbyApi, pluginOptions);
   const schema = await loadSchema(execute);
 
   const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
@@ -198,13 +225,36 @@ async function createSourcingConfig(
     }),
   }));
 
+  return { schema, gatsbyNodeTypes };
+}
+
+async function createSourcingConfig(
+  gatsbyApi: ParentSpanPluginArgs,
+  pluginOptions: RealPluginOptions
+): Promise<ISourcingConfig> {
+  const { fragmentsPath, stages, typePrefix } = pluginOptions;
+  const { cache, reporter } = gatsbyApi;
+  const defaultStage = stages && stages.length === 1 && stages[0];
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.info(`no default stage for GraphCMS`);
+  }
+
+  const execute = createExecutor(gatsbyApi, pluginOptions);
+  const { schema, gatsbyNodeTypes } = (await cache.get(
+    SchemaConfigCacheKey
+  )) as ISchemaInformation;
+
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
 
   if (!fs.existsSync(fragmentsDir)) fs.mkdirSync(fragmentsDir);
 
   const addSystemFieldArguments = (field) => {
-    if (["createdAt", "publishedAt", "updatedAt"].includes(field.name))
+    if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) {
+      console.log(`got field: ${JSON.stringify(field)}`);
       return { variation: `COMBINED` };
+    }
   };
 
   const fragments = await readOrGenerateDefaultFragments(fragmentsDir, {
@@ -247,12 +297,7 @@ type GraphCMS_Node = Node & {
 };
 export async function onCreateNode(
   args: CreateNodeArgs<GraphCMS_Node>,
-  {
-    buildMarkdownNodes = false,
-    downloadLocalImages = false,
-    downloadAllAssets = false,
-    typePrefix = "GraphCMS_",
-  }: RealPluginOptions
+  pluginOptions: RealPluginOptions
 ) {
   const {
     node,
@@ -262,6 +307,12 @@ export async function onCreateNode(
     store,
     reporter,
   } = args;
+  const {
+    buildMarkdownNodes,
+    downloadAllAssets,
+    downloadLocalImages,
+    typePrefix,
+  } = pluginOptions;
 
   if (
     node.remoteTypeName === "Asset" &&
@@ -323,15 +374,33 @@ export async function onCreateNode(
   }
 }
 
-export function createSchemaCustomization(
-  { actions: { createTypes } }: CreateSchemaCustomizationArgs,
-  {
-    buildMarkdownNodes = false,
-    downloadLocalImages = false,
-    downloadAllAssets = false,
-    typePrefix = "GraphCMS_",
-  }: RealPluginOptions
+export async function createSchemaCustomization(
+  gatsbyApi: CreateSchemaCustomizationArgs,
+  pluginOptions: RealPluginOptions
 ) {
+  const {
+    buildMarkdownNodes,
+    downloadAllAssets,
+    downloadLocalImages,
+    typePrefix,
+  } = pluginOptions;
+  const {
+    actions: { createTypes },
+    cache,
+  } = gatsbyApi;
+
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  await cache.set(SchemaConfigCacheKey, schemaConfig);
+  const { gatsbyNodeTypes } = schemaConfig;
+
+  gatsbyNodeTypes.forEach((gatsbyNodeType) => {
+    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
+      updatedAt: Date! @dateformat
+      createdAt: Date! @dateformat
+      publishedAt: Date @dateformat
+    }`);
+  });
+
   if (downloadLocalImages || downloadAllAssets)
     createTypes(`
       type ${typePrefix}Asset {

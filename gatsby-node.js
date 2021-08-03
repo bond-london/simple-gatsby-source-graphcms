@@ -24,6 +24,8 @@ var _he = require("he");
 
 var _nodeFetch = _interopRequireDefault(require("node-fetch"));
 
+const SchemaConfigCacheKey = "CachedInformation";
+
 function pluginOptionsSchema(args) {
   const {
     Joi
@@ -41,7 +43,7 @@ function pluginOptionsSchema(args) {
   });
 }
 
-async function createSourcingConfig(gatsbyApi, pluginOptions) {
+function createExecutor(gatsbyApi, pluginOptions) {
   const {
     endpoint,
     fragmentsPath,
@@ -99,6 +101,15 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
     });
   };
 
+  return execute;
+}
+
+async function retrieveSchema(gatsbyApi, pluginOptions) {
+  const {
+    locales,
+    stages
+  } = pluginOptions;
+  const execute = createExecutor(gatsbyApi, pluginOptions);
   const schema = await (0, _gatsbyGraphqlSourceToolkit.loadSchema)(execute);
   const nodeInterface = schema.getType("Node");
   const query = schema.getType("Query");
@@ -139,13 +150,45 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
       stage
     })
   }));
+  return {
+    schema,
+    gatsbyNodeTypes
+  };
+}
+
+async function createSourcingConfig(gatsbyApi, pluginOptions) {
+  const {
+    fragmentsPath,
+    stages,
+    typePrefix
+  } = pluginOptions;
+  const {
+    cache,
+    reporter
+  } = gatsbyApi;
+  const defaultStage = stages && stages.length === 1 && stages[0];
+
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.info(`no default stage for GraphCMS`);
+  }
+
+  const execute = createExecutor(gatsbyApi, pluginOptions);
+  const {
+    schema,
+    gatsbyNodeTypes
+  } = await cache.get(SchemaConfigCacheKey);
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
   if (!_fs.default.existsSync(fragmentsDir)) _fs.default.mkdirSync(fragmentsDir);
 
   const addSystemFieldArguments = field => {
-    if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) return {
-      variation: `COMBINED`
-    };
+    if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) {
+      console.log(`got field: ${JSON.stringify(field)}`);
+      return {
+        variation: `COMBINED`
+      };
+    }
   };
 
   const fragments = await (0, _gatsbyGraphqlSourceToolkit.readOrGenerateDefaultFragments)(fragmentsDir, {
@@ -178,12 +221,7 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
   await (0, _gatsbyGraphqlSourceToolkit.sourceAllNodes)(config);
 }
 
-async function onCreateNode(args, {
-  buildMarkdownNodes = false,
-  downloadLocalImages = false,
-  downloadAllAssets = false,
-  typePrefix = "GraphCMS_"
-}) {
+async function onCreateNode(args, pluginOptions) {
   const {
     node,
     actions: {
@@ -194,6 +232,12 @@ async function onCreateNode(args, {
     store,
     reporter
   } = args;
+  const {
+    buildMarkdownNodes,
+    downloadAllAssets,
+    downloadLocalImages,
+    typePrefix
+  } = pluginOptions;
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && node.mimeType.includes("image/"))) {
     try {
@@ -247,16 +291,31 @@ async function onCreateNode(args, {
   }
 }
 
-function createSchemaCustomization({
-  actions: {
-    createTypes
-  }
-}, {
-  buildMarkdownNodes = false,
-  downloadLocalImages = false,
-  downloadAllAssets = false,
-  typePrefix = "GraphCMS_"
-}) {
+async function createSchemaCustomization(gatsbyApi, pluginOptions) {
+  const {
+    buildMarkdownNodes,
+    downloadAllAssets,
+    downloadLocalImages,
+    typePrefix
+  } = pluginOptions;
+  const {
+    actions: {
+      createTypes
+    },
+    cache
+  } = gatsbyApi;
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  await cache.set(SchemaConfigCacheKey, schemaConfig);
+  const {
+    gatsbyNodeTypes
+  } = schemaConfig;
+  gatsbyNodeTypes.forEach(gatsbyNodeType => {
+    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
+      updatedAt: Date! @dateformat
+      createdAt: Date! @dateformat
+      publishedAt: Date @dateformat
+    }`);
+  });
   if (downloadLocalImages || downloadAllAssets) createTypes(`
       type ${typePrefix}Asset {
         localFile: File @link
