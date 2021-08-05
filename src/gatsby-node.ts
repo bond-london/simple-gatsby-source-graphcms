@@ -252,7 +252,6 @@ async function createSourcingConfig(
 
   const addSystemFieldArguments = (field) => {
     if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) {
-      console.log(`got field: ${JSON.stringify(field)}`);
       return { variation: `COMBINED` };
     }
   };
