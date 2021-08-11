@@ -233,7 +233,6 @@ function createImageUrl(url, maxWidth) {
   }
 
   const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
-  console.log(`Using resize url: ${resized} for ${url}`);
   return resized;
 }
 
@@ -260,7 +259,7 @@ async function onCreateNode(args, pluginOptions) {
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
     try {
       const realUrl = isImage ? createImageUrl(node.url, maxImageWidth) : node.url;
-      reporter.info(`Using ${realUrl} for ${node.url}`);
+      reporter.verbose(`Using ${realUrl} for ${node.url}`);
 
       const ext = node.fileName && _path.default.extname(node.fileName);
 

@@ -303,7 +303,6 @@ function createImageUrl(url: string, maxWidth: number) {
   }
 
   const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
-  console.log(`Using resize url: ${resized} for ${url}`);
   return resized;
 }
 
@@ -345,7 +344,7 @@ export async function onCreateNode(
       const realUrl = isImage
         ? createImageUrl(node.url, maxImageWidth)
         : node.url;
-      reporter.info(`Using ${realUrl} for ${node.url}`);
+      reporter.verbose(`Using ${realUrl} for ${node.url}`);
       const ext = node.fileName && path.extname(node.fileName);
       const name = node.fileName && path.basename(node.fileName, ext);
       const fileNode = await createRemoteFileNode({
