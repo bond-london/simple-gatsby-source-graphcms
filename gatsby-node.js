@@ -254,7 +254,7 @@ async function onCreateNode(args, pluginOptions) {
     typePrefix,
     maxImageWidth
   } = pluginOptions;
-  const isImage = node.remoteTypeName === "Asset" && node.mimeType.includes("image/");
+  const isImage = node.remoteTypeName === "Asset" && node.mimeType.includes("image/") && !node.mimeType.includes("image/svg");
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
     try {

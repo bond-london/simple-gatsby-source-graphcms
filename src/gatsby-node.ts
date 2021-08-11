@@ -334,7 +334,9 @@ export async function onCreateNode(
   } = pluginOptions;
 
   const isImage =
-    node.remoteTypeName === "Asset" && node.mimeType.includes("image/");
+    node.remoteTypeName === "Asset" &&
+    node.mimeType.includes("image/") &&
+    !node.mimeType.includes("image/svg");
 
   if (
     node.remoteTypeName === "Asset" &&
