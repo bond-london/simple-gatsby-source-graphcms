@@ -39,7 +39,8 @@ function pluginOptionsSchema(args) {
     locales: Joi.array().description(`An array of locale key strings from your GraphCMS project. You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).`).items(Joi.string()).min(1).default(["en"]),
     stages: Joi.array().description(`An array of Content Stages from your GraphCMS project. You can read more about using Content Stages [here](https://graphcms.com/guides/working-with-content-stages).`).items(Joi.string()).min(1).default(["PUBLISHED"]),
     token: Joi.string().description(`If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`),
-    typePrefix: Joi.string().description(`The string by which every generated type name is prefixed with. For example, a type of Post in GraphCMS would become GraphCMS_Post by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts`).default(`GraphCMS_`)
+    typePrefix: Joi.string().description(`The string by which every generated type name is prefixed with. For example, a type of Post in GraphCMS would become GraphCMS_Post by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts`).default(`GraphCMS_`),
+    maxImageWidth: Joi.number().description("Maximum width of images to download").default(0)
   });
 }
 
@@ -220,6 +221,22 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
   await (0, _gatsbyGraphqlSourceToolkit.sourceAllNodes)(config);
 }
 
+function createImageUrl(url, maxWidth) {
+  if (!maxWidth) {
+    return url;
+  }
+
+  const parsed = new URL(url);
+
+  if (parsed.hostname !== "media.graphcms.com") {
+    return url;
+  }
+
+  const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
+  console.log(`Using resize url: ${resized} for ${url}`);
+  return resized;
+}
+
 async function onCreateNode(args, pluginOptions) {
   const {
     node,
@@ -235,17 +252,22 @@ async function onCreateNode(args, pluginOptions) {
     buildMarkdownNodes,
     downloadAllAssets,
     downloadLocalImages,
-    typePrefix
+    typePrefix,
+    maxImageWidth
   } = pluginOptions;
+  const isImage = node.remoteTypeName === "Asset" && node.mimeType.includes("image/");
 
-  if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && node.mimeType.includes("image/"))) {
+  if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
     try {
+      const realUrl = isImage ? createImageUrl(node.url, maxImageWidth) : node.url;
+      reporter.info(`Using ${realUrl} for ${node.url}`);
+
       const ext = node.fileName && _path.default.extname(node.fileName);
 
       const name = node.fileName && _path.default.basename(node.fileName, ext);
 
       const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
-        url: node.url,
+        url: realUrl,
         parentNodeId: node.id,
         createNode,
         createNodeId,

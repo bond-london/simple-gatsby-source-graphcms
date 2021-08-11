@@ -91,6 +91,9 @@ export function pluginOptionsSchema(
         `The string by which every generated type name is prefixed with. For example, a type of Post in GraphCMS would become GraphCMS_Post by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts`
       )
       .default(`GraphCMS_`),
+    maxImageWidth: Joi.number()
+      .description("Maximum width of images to download")
+      .default(0),
   });
 }
 
@@ -104,6 +107,7 @@ interface RealPluginOptions extends PluginOptions {
   token: string;
   typePrefix: string;
   locales: string[];
+  maxImageWidth: number;
 }
 
 function createExecutor(
@@ -287,6 +291,22 @@ export async function sourceNodes(
 
   await sourceAllNodes(config);
 }
+
+function createImageUrl(url: string, maxWidth: number) {
+  if (!maxWidth) {
+    return url;
+  }
+
+  const parsed = new URL(url);
+  if (parsed.hostname !== "media.graphcms.com") {
+    return url;
+  }
+
+  const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
+  console.log(`Using resize url: ${resized} for ${url}`);
+  return resized;
+}
+
 type GraphCMS_Node = Node & {
   mimeType: string;
   url: string;
@@ -311,18 +331,25 @@ export async function onCreateNode(
     downloadAllAssets,
     downloadLocalImages,
     typePrefix,
+    maxImageWidth,
   } = pluginOptions;
+
+  const isImage =
+    node.remoteTypeName === "Asset" && node.mimeType.includes("image/");
 
   if (
     node.remoteTypeName === "Asset" &&
-    (downloadAllAssets ||
-      (downloadLocalImages && node.mimeType.includes("image/")))
+    (downloadAllAssets || (downloadLocalImages && isImage))
   ) {
     try {
+      const realUrl = isImage
+        ? createImageUrl(node.url, maxImageWidth)
+        : node.url;
+      reporter.info(`Using ${realUrl} for ${node.url}`);
       const ext = node.fileName && path.extname(node.fileName);
       const name = node.fileName && path.basename(node.fileName, ext);
       const fileNode = await createRemoteFileNode({
-        url: node.url,
+        url: realUrl,
         parentNodeId: node.id,
         createNode,
         createNodeId,
