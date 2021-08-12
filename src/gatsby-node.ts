@@ -22,6 +22,7 @@ import {
   ParentSpanPluginArgs,
   PluginOptions,
   PluginOptionsSchemaArgs,
+  Reporter,
   SourceNodesArgs,
 } from "gatsby";
 import {
@@ -292,7 +293,7 @@ export async function sourceNodes(
   await sourceAllNodes(config);
 }
 
-function createImageUrl(url: string, maxWidth: number) {
+function createImageUrl(url: string, maxWidth: number, reporter: Reporter) {
   if (!maxWidth) {
     return url;
   }
@@ -303,16 +304,47 @@ function createImageUrl(url: string, maxWidth: number) {
   }
 
   const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
+  reporter.verbose(`Using ${resized} for ${url}`);
   return resized;
+}
+
+function isAssetUsed(node: GraphCMS_Node, reporter: Reporter) {
+  const fields = Object.entries(node);
+  const remoteId = node.remoteId;
+  if (!remoteId) return false;
+  let used = false;
+  for (const [key, value] of fields) {
+    if (Array.isArray(value)) {
+      for (const entry of value as AssetReference[]) {
+        if (entry.remoteId) {
+          reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
+          used = true;
+        }
+      }
+    }
+  }
+  return used;
+}
+
+interface AssetReference {
+  remoteTypeName: string;
+  remoteId: string;
+  stage: string;
+  locale: string;
 }
 
 type GraphCMS_Node = Node & {
   mimeType: string;
   url: string;
-  fileName: string;
   remoteTypeName?: string;
+  remoteId?: string;
   markdown?: string;
+  fileName: string;
+  height?: number;
+  width?: number;
+  size: number;
 };
+
 export async function onCreateNode(
   args: CreateNodeArgs<GraphCMS_Node>,
   pluginOptions: RealPluginOptions
@@ -333,38 +365,47 @@ export async function onCreateNode(
     maxImageWidth,
   } = pluginOptions;
 
-  const isImage =
-    node.remoteTypeName === "Asset" &&
-    node.mimeType.includes("image/") &&
-    !node.mimeType.includes("image/svg");
+  const isImage = node.remoteTypeName === "Asset" && node.width && node.height;
 
   if (
     node.remoteTypeName === "Asset" &&
     (downloadAllAssets || (downloadLocalImages && isImage))
   ) {
-    try {
-      const realUrl = isImage
-        ? createImageUrl(node.url, maxImageWidth)
-        : node.url;
-      reporter.verbose(`Using ${realUrl} for ${node.url}`);
-      const ext = node.fileName && path.extname(node.fileName);
-      const name = node.fileName && path.basename(node.fileName, ext);
-      const fileNode = await createRemoteFileNode({
-        url: realUrl,
-        parentNodeId: node.id,
-        createNode,
-        createNodeId,
-        getCache,
-        cache: undefined,
-        store,
-        reporter,
-        name,
-        ext,
-      } as any);
+    if (!isAssetUsed(node, reporter)) {
+      reporter.verbose(
+        `Skipping unused asset ${node.fileName} ${node.remoteId}`
+      );
+    } else {
+      if (node.size > 10 * 1024 * 1024) {
+        reporter.warn(
+          `Asset ${node.fileName} ${node.remoteId} is too large: ${node.size}`
+        );
+      }
 
-      if (fileNode) node.localFile = fileNode.id;
-    } catch (e) {
-      console.error("gatsby-source-graphcms:", e);
+      try {
+        const realUrl =
+          isImage && maxImageWidth && node.width > maxImageWidth
+            ? createImageUrl(node.url, maxImageWidth, reporter)
+            : node.url;
+        const ext = node.fileName && path.extname(node.fileName);
+        const name = node.fileName && path.basename(node.fileName, ext);
+        const fileNode = await createRemoteFileNode({
+          url: realUrl,
+          parentNodeId: node.id,
+          createNode,
+          createNodeId,
+          getCache,
+          cache: undefined,
+          store,
+          reporter,
+          name,
+          ext,
+        } as any);
+
+        if (fileNode) node.localFile = fileNode.id;
+      } catch (e) {
+        console.error("gatsby-source-graphcms:", e);
+      }
     }
   }
 

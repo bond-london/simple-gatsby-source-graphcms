@@ -1,10 +1,11 @@
 {
   "name": "@bond-london/simple-gatsby-source-graphcms",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Simple version of the official Gatsby source plugin for GraphCMS projects",
   "main": "index.js",
   "scripts": {
-    "build": "babel src --out-dir ./ --source-maps --extensions .ts"
+    "build": "babel src --out-dir ./ --source-maps --extensions .ts",
+    "watch": "babel --watch src --out-dir ./ --source-maps --extensions .ts"
   },
   "keywords": [
     "data",

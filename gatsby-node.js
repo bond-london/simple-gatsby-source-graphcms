@@ -221,7 +221,7 @@ async function sourceNodes(gatsbyApi, pluginOptions) {
   await (0, _gatsbyGraphqlSourceToolkit.sourceAllNodes)(config);
 }
 
-function createImageUrl(url, maxWidth) {
+function createImageUrl(url, maxWidth, reporter) {
   if (!maxWidth) {
     return url;
   }
@@ -233,7 +233,28 @@ function createImageUrl(url, maxWidth) {
   }
 
   const resized = `https://${parsed.hostname}/resize=width:${maxWidth},fit:max${parsed.pathname}`;
+  reporter.verbose(`Using ${resized} for ${url}`);
   return resized;
+}
+
+function isAssetUsed(node, reporter) {
+  const fields = Object.entries(node);
+  const remoteId = node.remoteId;
+  if (!remoteId) return false;
+  let used = false;
+
+  for (const [key, value] of fields) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry.remoteId) {
+          reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
+          used = true;
+        }
+      }
+    }
+  }
+
+  return used;
 }
 
 async function onCreateNode(args, pluginOptions) {
@@ -254,32 +275,39 @@ async function onCreateNode(args, pluginOptions) {
     typePrefix,
     maxImageWidth
   } = pluginOptions;
-  const isImage = node.remoteTypeName === "Asset" && node.mimeType.includes("image/") && !node.mimeType.includes("image/svg");
+  const isImage = node.remoteTypeName === "Asset" && node.width && node.height;
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
-    try {
-      const realUrl = isImage ? createImageUrl(node.url, maxImageWidth) : node.url;
-      reporter.verbose(`Using ${realUrl} for ${node.url}`);
+    if (!isAssetUsed(node, reporter)) {
+      reporter.verbose(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
+    } else {
+      if (node.size > 10 * 1024 * 1024) {
+        reporter.warn(`Asset ${node.fileName} ${node.remoteId} is too large: ${node.size}`);
+      }
 
-      const ext = node.fileName && _path.default.extname(node.fileName);
+      try {
+        const realUrl = isImage && maxImageWidth && node.width > maxImageWidth ? createImageUrl(node.url, maxImageWidth, reporter) : node.url;
 
-      const name = node.fileName && _path.default.basename(node.fileName, ext);
+        const ext = node.fileName && _path.default.extname(node.fileName);
 
-      const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
-        url: realUrl,
-        parentNodeId: node.id,
-        createNode,
-        createNodeId,
-        getCache,
-        cache: undefined,
-        store,
-        reporter,
-        name,
-        ext
-      });
-      if (fileNode) node.localFile = fileNode.id;
-    } catch (e) {
-      console.error("gatsby-source-graphcms:", e);
+        const name = node.fileName && _path.default.basename(node.fileName, ext);
+
+        const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
+          url: realUrl,
+          parentNodeId: node.id,
+          createNode,
+          createNodeId,
+          getCache,
+          cache: undefined,
+          store,
+          reporter,
+          name,
+          ext
+        });
+        if (fileNode) node.localFile = fileNode.id;
+      } catch (e) {
+        console.error("gatsby-source-graphcms:", e);
+      }
     }
   }
 
