@@ -1,6 +1,6 @@
 {
   "name": "@bond-london/simple-gatsby-source-graphcms",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Simple version of the official Gatsby source plugin for GraphCMS projects",
   "main": "index.js",
   "scripts": {

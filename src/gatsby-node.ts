@@ -60,6 +60,9 @@ export function pluginOptionsSchema(
         `Download and cache all GraphCMS assets in your Gatsby project`
       )
       .default(false),
+    skipUnusedAssets: Joi.boolean()
+      .description("Skip unused assets")
+      .default(true),
     endpoint: Joi.string()
       .description(
         `The endpoint URL for the GraphCMS project. This can be found in the [project settings UI](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`
@@ -109,6 +112,7 @@ interface RealPluginOptions extends PluginOptions {
   typePrefix: string;
   locales: string[];
   maxImageWidth: number;
+  skipUnusedAssets: boolean;
 }
 
 function createExecutor(
@@ -363,6 +367,7 @@ export async function onCreateNode(
     downloadLocalImages,
     typePrefix,
     maxImageWidth,
+    skipUnusedAssets,
   } = pluginOptions;
 
   const isImage = node.remoteTypeName === "Asset" && node.width && node.height;
@@ -371,10 +376,8 @@ export async function onCreateNode(
     node.remoteTypeName === "Asset" &&
     (downloadAllAssets || (downloadLocalImages && isImage))
   ) {
-    if (!isAssetUsed(node, reporter)) {
-      reporter.verbose(
-        `Skipping unused asset ${node.fileName} ${node.remoteId}`
-      );
+    if (skipUnusedAssets && !isAssetUsed(node, reporter)) {
+      reporter.info(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
     } else {
       if (node.size > 10 * 1024 * 1024) {
         reporter.warn(
