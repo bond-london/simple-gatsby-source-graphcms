@@ -127,7 +127,7 @@ async function retrieveSchema(gatsbyApi, pluginOptions) {
   const gatsbyNodeTypes = possibleTypes.map(type => ({
     remoteTypeName: type.name,
     queries: [...locales.map(locale => stages.map(stage => `
-          query LIST_${pluralRootFieldName(type)}_${locale}_${stage} { ${pluralRootFieldName(type)}(first: $limit, ${hasLocaleField(type) ? `locales: [${locale}]` : ""}, skip: $offset, stage: ${stage}) {
+          query LIST_${pluralRootFieldName(type)}_${locale}_${stage} { ${pluralRootFieldName(type)}(first: $limit, ${hasLocaleField(type) ? `locales: [${locale}, ${locales[0]}]` : ""}, skip: $offset, stage: ${stage}) {
               ..._${type.name}Id_
             }
           }`)), `query NODE_${singularRootFieldName(type)}{ ${singularRootFieldName(type)}(where: $where, ${hasLocaleField(type) ? `locales: $locales` : ""}) {

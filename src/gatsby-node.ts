@@ -207,7 +207,7 @@ async function retrieveSchema(
           query LIST_${pluralRootFieldName(
             type
           )}_${locale}_${stage} { ${pluralRootFieldName(type)}(first: $limit, ${
-            hasLocaleField(type) ? `locales: [${locale}]` : ""
+            hasLocaleField(type) ? `locales: [${locale}, ${locales[0]}]` : ""
           }, skip: $offset, stage: ${stage}) {
               ..._${type.name}Id_
             }
