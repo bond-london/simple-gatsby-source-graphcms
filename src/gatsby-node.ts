@@ -15,6 +15,7 @@ import { decode } from "he";
 import fetch from "node-fetch";
 import { ObjectSchema } from "gatsby-plugin-utils";
 import {
+  Actions,
   CreateNodeArgs,
   CreateSchemaCustomizationArgs,
   Node,
@@ -37,8 +38,6 @@ import {
   ISourcingConfig,
   RemoteTypeName,
 } from "gatsby-graphql-source-toolkit/dist/types";
-
-const SchemaConfigCacheKey = "CachedInformation";
 
 export function pluginOptionsSchema(
   args: PluginOptionsSchemaArgs
@@ -97,7 +96,13 @@ export function pluginOptionsSchema(
       .default(`GraphCMS_`),
     maxImageWidth: Joi.number()
       .description("Maximum width of images to download")
+      .integer()
       .default(0),
+    concurrency: Joi.number()
+      .integer()
+      .min(1)
+      .default(10)
+      .description("The number of promises to run at one time"),
   });
 }
 
@@ -113,6 +118,7 @@ interface RealPluginOptions extends PluginOptions {
   locales: string[];
   maxImageWidth: number;
   skipUnusedAssets: boolean;
+  concurrency: number;
 }
 
 function createExecutor(
@@ -241,8 +247,8 @@ async function createSourcingConfig(
   gatsbyApi: ParentSpanPluginArgs,
   pluginOptions: RealPluginOptions
 ): Promise<ISourcingConfig> {
-  const { fragmentsPath, stages, typePrefix } = pluginOptions;
-  const { cache, reporter } = gatsbyApi;
+  const { fragmentsPath, stages, typePrefix, concurrency } = pluginOptions;
+  const { reporter, actions } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
   if (defaultStage) {
     reporter.info(`using default GraphCMS stage: ${defaultStage}`);
@@ -251,9 +257,9 @@ async function createSourcingConfig(
   }
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
-  const { schema, gatsbyNodeTypes } = (await cache.get(
-    SchemaConfigCacheKey
-  )) as ISchemaInformation;
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  await customiseSchema(actions, pluginOptions, schemaConfig);
+  const { schema, gatsbyNodeTypes } = schemaConfig;
 
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
 
@@ -280,7 +286,7 @@ async function createSourcingConfig(
   return {
     gatsbyApi,
     schema,
-    execute: wrapQueryExecutorWithQueue(execute, { concurrency: 10 }),
+    execute: wrapQueryExecutorWithQueue(execute, { concurrency }),
     gatsbyTypePrefix: typePrefix,
     gatsbyNodeDefs: buildNodeDefinitions({ gatsbyNodeTypes, documents }),
   };
@@ -377,7 +383,9 @@ export async function onCreateNode(
     (downloadAllAssets || (downloadLocalImages && isImage))
   ) {
     if (skipUnusedAssets && !isAssetUsed(node, reporter)) {
-      reporter.info(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
+      reporter.verbose(
+        `Skipping unused asset ${node.fileName} ${node.remoteId}`
+      );
     } else {
       if (node.size > 10 * 1024 * 1024) {
         reporter.warn(
@@ -445,6 +453,20 @@ export async function onCreateNode(
   }
 }
 
+async function customiseSchema(
+  { createTypes }: Actions,
+  { typePrefix }: RealPluginOptions,
+  { gatsbyNodeTypes }: ISchemaInformation
+) {
+  gatsbyNodeTypes.forEach((gatsbyNodeType) => {
+    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
+      updatedAt: Date! @dateformat
+      createdAt: Date! @dateformat
+      publishedAt: Date @dateformat
+    }`);
+  });
+}
+
 export async function createSchemaCustomization(
   gatsbyApi: CreateSchemaCustomizationArgs,
   pluginOptions: RealPluginOptions
@@ -457,20 +479,7 @@ export async function createSchemaCustomization(
   } = pluginOptions;
   const {
     actions: { createTypes },
-    cache,
   } = gatsbyApi;
-
-  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
-  await cache.set(SchemaConfigCacheKey, schemaConfig);
-  const { gatsbyNodeTypes } = schemaConfig;
-
-  gatsbyNodeTypes.forEach((gatsbyNodeType) => {
-    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
-      updatedAt: Date! @dateformat
-      createdAt: Date! @dateformat
-      publishedAt: Date @dateformat
-    }`);
-  });
 
   if (downloadLocalImages || downloadAllAssets)
     createTypes(`
