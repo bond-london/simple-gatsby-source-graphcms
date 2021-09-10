@@ -24,8 +24,6 @@ var _he = require("he");
 
 var _nodeFetch = _interopRequireDefault(require("node-fetch"));
 
-const SchemaConfigCacheKey = "CachedInformation";
-
 function pluginOptionsSchema(args) {
   const {
     Joi
@@ -41,7 +39,8 @@ function pluginOptionsSchema(args) {
     stages: Joi.array().description(`An array of Content Stages from your GraphCMS project. You can read more about using Content Stages [here](https://graphcms.com/guides/working-with-content-stages).`).items(Joi.string()).min(1).default(["PUBLISHED"]),
     token: Joi.string().description(`If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`),
     typePrefix: Joi.string().description(`The string by which every generated type name is prefixed with. For example, a type of Post in GraphCMS would become GraphCMS_Post by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts`).default(`GraphCMS_`),
-    maxImageWidth: Joi.number().description("Maximum width of images to download").default(0)
+    maxImageWidth: Joi.number().description("Maximum width of images to download").integer().default(0),
+    concurrency: Joi.number().integer().min(1).default(10).description("The number of promises to run at one time")
   });
 }
 
@@ -162,11 +161,12 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
   const {
     fragmentsPath,
     stages,
-    typePrefix
+    typePrefix,
+    concurrency
   } = pluginOptions;
   const {
-    cache,
-    reporter
+    reporter,
+    actions
   } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
 
@@ -177,10 +177,12 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
   }
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  await customiseSchema(actions, pluginOptions, schemaConfig);
   const {
     schema,
     gatsbyNodeTypes
-  } = await cache.get(SchemaConfigCacheKey);
+  } = schemaConfig;
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
   if (!_fs.default.existsSync(fragmentsDir)) _fs.default.mkdirSync(fragmentsDir);
 
@@ -206,7 +208,7 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
     gatsbyApi,
     schema,
     execute: (0, _gatsbyGraphqlSourceToolkit.wrapQueryExecutorWithQueue)(execute, {
-      concurrency: 10
+      concurrency
     }),
     gatsbyTypePrefix: typePrefix,
     gatsbyNodeDefs: (0, _gatsbyGraphqlSourceToolkit.buildNodeDefinitions)({
@@ -341,6 +343,22 @@ async function onCreateNode(args, pluginOptions) {
   }
 }
 
+async function customiseSchema({
+  createTypes
+}, {
+  typePrefix
+}, {
+  gatsbyNodeTypes
+}) {
+  gatsbyNodeTypes.forEach(gatsbyNodeType => {
+    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
+      updatedAt: Date! @dateformat
+      createdAt: Date! @dateformat
+      publishedAt: Date @dateformat
+    }`);
+  });
+}
+
 async function createSchemaCustomization(gatsbyApi, pluginOptions) {
   const {
     buildMarkdownNodes,
@@ -351,21 +369,8 @@ async function createSchemaCustomization(gatsbyApi, pluginOptions) {
   const {
     actions: {
       createTypes
-    },
-    cache
+    }
   } = gatsbyApi;
-  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
-  await cache.set(SchemaConfigCacheKey, schemaConfig);
-  const {
-    gatsbyNodeTypes
-  } = schemaConfig;
-  gatsbyNodeTypes.forEach(gatsbyNodeType => {
-    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
-      updatedAt: Date! @dateformat
-      createdAt: Date! @dateformat
-      publishedAt: Date @dateformat
-    }`);
-  });
   if (downloadLocalImages || downloadAllAssets) createTypes(`
       type ${typePrefix}Asset {
         localFile: File @link
