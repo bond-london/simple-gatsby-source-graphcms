@@ -244,11 +244,12 @@ async function retrieveSchema(
 }
 
 async function createSourcingConfig(
+  schemaConfig: ISchemaInformation,
   gatsbyApi: ParentSpanPluginArgs,
   pluginOptions: RealPluginOptions
 ): Promise<ISourcingConfig> {
   const { fragmentsPath, stages, typePrefix, concurrency } = pluginOptions;
-  const { reporter, actions } = gatsbyApi;
+  const { reporter } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
   if (defaultStage) {
     reporter.info(`using default GraphCMS stage: ${defaultStage}`);
@@ -257,8 +258,6 @@ async function createSourcingConfig(
   }
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
-  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
-  await customiseSchema(actions, pluginOptions, schemaConfig);
   const { schema, gatsbyNodeTypes } = schemaConfig;
 
   const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
@@ -296,10 +295,12 @@ export async function sourceNodes(
   gatsbyApi: SourceNodesArgs,
   pluginOptions: RealPluginOptions
 ) {
-  const config = await createSourcingConfig(gatsbyApi, pluginOptions);
-
-  await createToolkitSchemaCustomization(config);
-
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  const config = await createSourcingConfig(
+    schemaConfig,
+    gatsbyApi,
+    pluginOptions
+  );
   await sourceAllNodes(config);
 }
 
@@ -329,8 +330,12 @@ function isAssetUsed(node: GraphCMS_Node, reporter: Reporter) {
         if (entry.remoteId) {
           reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
           used = true;
+          break;
         }
       }
+    }
+    if (used) {
+      break;
     }
   }
   return used;
@@ -477,9 +482,17 @@ export async function createSchemaCustomization(
     downloadLocalImages,
     typePrefix,
   } = pluginOptions;
-  const {
-    actions: { createTypes },
-  } = gatsbyApi;
+  const { actions } = gatsbyApi;
+  const { createTypes } = actions;
+
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  const config = await createSourcingConfig(
+    schemaConfig,
+    gatsbyApi,
+    pluginOptions
+  );
+  await customiseSchema(actions, pluginOptions, schemaConfig);
+  await createToolkitSchemaCustomization(config);
 
   if (downloadLocalImages || downloadAllAssets)
     createTypes(`

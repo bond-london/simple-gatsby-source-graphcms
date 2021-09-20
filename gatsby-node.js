@@ -157,7 +157,7 @@ async function retrieveSchema(gatsbyApi, pluginOptions) {
   };
 }
 
-async function createSourcingConfig(gatsbyApi, pluginOptions) {
+async function createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions) {
   const {
     fragmentsPath,
     stages,
@@ -165,8 +165,7 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
     concurrency
   } = pluginOptions;
   const {
-    reporter,
-    actions
+    reporter
   } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
 
@@ -177,8 +176,6 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
   }
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
-  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
-  await customiseSchema(actions, pluginOptions, schemaConfig);
   const {
     schema,
     gatsbyNodeTypes
@@ -219,8 +216,8 @@ async function createSourcingConfig(gatsbyApi, pluginOptions) {
 }
 
 async function sourceNodes(gatsbyApi, pluginOptions) {
-  const config = await createSourcingConfig(gatsbyApi, pluginOptions);
-  await (0, _gatsbyGraphqlSourceToolkit.createSchemaCustomization)(config);
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  const config = await createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions);
   await (0, _gatsbyGraphqlSourceToolkit.sourceAllNodes)(config);
 }
 
@@ -252,8 +249,13 @@ function isAssetUsed(node, reporter) {
         if (entry.remoteId) {
           reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
           used = true;
+          break;
         }
       }
+    }
+
+    if (used) {
+      break;
     }
   }
 
@@ -283,7 +285,7 @@ async function onCreateNode(args, pluginOptions) {
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
     if (skipUnusedAssets && !isAssetUsed(node, reporter)) {
-      reporter.info(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
+      reporter.verbose(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
     } else {
       if (node.size > 10 * 1024 * 1024) {
         reporter.warn(`Asset ${node.fileName} ${node.remoteId} is too large: ${node.size}`);
@@ -367,10 +369,15 @@ async function createSchemaCustomization(gatsbyApi, pluginOptions) {
     typePrefix
   } = pluginOptions;
   const {
-    actions: {
-      createTypes
-    }
+    actions
   } = gatsbyApi;
+  const {
+    createTypes
+  } = actions;
+  const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
+  const config = await createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions);
+  await customiseSchema(actions, pluginOptions, schemaConfig);
+  await (0, _gatsbyGraphqlSourceToolkit.createSchemaCustomization)(config);
   if (downloadLocalImages || downloadAllAssets) createTypes(`
       type ${typePrefix}Asset {
         localFile: File @link
