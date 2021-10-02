@@ -3,9 +3,20 @@
   "version": "1.6.0",
   "description": "Simple version of the official Gatsby source plugin for GraphCMS projects",
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
-    "build": "babel src --out-dir ./ --source-maps --extensions .ts",
-    "watch": "babel --watch src --out-dir ./ --source-maps --extensions .ts"
+    "build:ts": "babel src --out-dir dist --extensions .ts,.tsx",
+    "build:defs": "tsc --declaration --outDir dist --emitDeclarationOnly",
+    "dev:ts": "babel -w src --out-dir dist --extensions .ts,.tsx",
+    "dev:defs": "tsc -w --declaration --outDir dist --emitDeclarationOnly",
+    "dev": "run-p dev:ts dev:defs",
+    "prepare": "cross-env NODE_ENV=production yarn run build:ts && yarn run build:defs && husky install",
+    "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
+    "release": "release-it"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "keywords": [
     "data",
@@ -31,7 +42,35 @@
     "@babel/preset-typescript": "^7.13.0",
     "@babel/runtime": "^7.14.0",
     "babel-preset-gatsby-package": "^1.5.0",
-    "gatsby": "^3.5.0"
+    "cross-env": "^7.0.3",
+    "gatsby": "^3.5.0",
+    "husky": "^7.0.2",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.4.1",
+    "typescript": "^4.4.3"
   },
-  "peerDependencies": {}
+  "peerDependencies": {},
+  "husky": {
+    "hooks": {
+      "pre-commit": "pretty-quick --staged"
+    }
+  },
+  "release-it": {
+    "git": {
+      "tagName": "v${version}",
+      "commitMessage": "chore: release v${version}"
+    },
+    "github": {
+      "release": true
+    },
+    "npm": {
+      "publish": true
+    },
+    "hooks": {
+      "before:init": [
+        "yarn run format",
+        "yarn run prepare"
+      ]
+    }
+  }
 }

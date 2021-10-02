@@ -1,1 +1,1 @@
-// noop
+module.exports = required("./dist");

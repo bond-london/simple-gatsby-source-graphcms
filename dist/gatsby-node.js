@@ -458,4 +458,3 @@ async function createSchemaCustomization(gatsbyApi, pluginOptions) {
       }
     `);
 }
-//# sourceMappingURL=gatsby-node.js.map
