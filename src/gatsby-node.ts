@@ -17,6 +17,7 @@ import { ObjectSchema } from "gatsby-plugin-utils";
 import {
   Actions,
   CreateNodeArgs,
+  CreateResolversArgs,
   CreateSchemaCustomizationArgs,
   Node,
   NodePluginArgs,
@@ -129,11 +130,6 @@ function createExecutor(
     pluginOptions;
   const { reporter } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
-  if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
-  } else {
-    reporter.info(`no default stage for GraphCMS`);
-  }
   const execute = async ({ operationName, query, variables = {} }) => {
     return await fetch(endpoint, {
       method: "POST",
@@ -251,11 +247,6 @@ async function createSourcingConfig(
   const { fragmentsPath, stages, typePrefix, concurrency } = pluginOptions;
   const { reporter } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
-  if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
-  } else {
-    reporter.info(`no default stage for GraphCMS`);
-  }
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
   const { schema, gatsbyNodeTypes } = schemaConfig;
@@ -289,6 +280,33 @@ async function createSourcingConfig(
     gatsbyTypePrefix: typePrefix,
     gatsbyNodeDefs: buildNodeDefinitions({ gatsbyNodeTypes, documents }),
   };
+}
+
+export function createResolvers(
+  args: CreateResolversArgs,
+  pluginOptions: RealPluginOptions
+): void {
+  const { createResolvers, reporter } = args;
+  const { typePrefix } = pluginOptions;
+
+  const resolvers = {
+    [`${typePrefix}Asset`]: {
+      localFile: {
+        type: "File",
+        resolve(source: GraphCMS_Node, args, context, info) {
+          if (source.children?.length) {
+            for (const id of source.children) {
+              const file = context.nodeModel.getNodeById({ id, type: "File" });
+              if (file) {
+                return file;
+              }
+            }
+          }
+        },
+      },
+    },
+  };
+  createResolvers(resolvers);
 }
 
 export async function sourceNodes(
@@ -328,7 +346,7 @@ function isAssetUsed(node: GraphCMS_Node, reporter: Reporter) {
     if (Array.isArray(value)) {
       for (const entry of value as AssetReference[]) {
         if (entry.remoteId) {
-          reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
+          // reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
           used = true;
           break;
         }
@@ -358,7 +376,11 @@ type GraphCMS_Node = Node & {
   height?: number;
   width?: number;
   size: number;
+  stage: string;
+  locale: string;
 };
+
+let shownMarkdownWarning = false;
 
 export async function onCreateNode(
   args: CreateNodeArgs<GraphCMS_Node>,
@@ -366,7 +388,7 @@ export async function onCreateNode(
 ) {
   const {
     node,
-    actions: { createNode },
+    actions: { createNode, createParentChildLink },
     createNodeId,
     getCache,
     store,
@@ -388,9 +410,9 @@ export async function onCreateNode(
     (downloadAllAssets || (downloadLocalImages && isImage))
   ) {
     if (skipUnusedAssets && !isAssetUsed(node, reporter)) {
-      reporter.verbose(
-        `Skipping unused asset ${node.fileName} ${node.remoteId}`
-      );
+      // reporter.verbose(
+      //   `Skipping unused asset ${node.fileName} ${node.remoteId}`
+      // );
     } else {
       if (node.size > 10 * 1024 * 1024) {
         reporter.warn(
@@ -405,6 +427,7 @@ export async function onCreateNode(
             : node.url;
         const ext = node.fileName && path.extname(node.fileName);
         const name = node.fileName && path.basename(node.fileName, ext);
+        const localNodeId = createNodeId(`${node.id} >> LocalFile`);
         const fileNode = await createRemoteFileNode({
           url: realUrl,
           parentNodeId: node.id,
@@ -417,8 +440,24 @@ export async function onCreateNode(
           name,
           ext,
         } as any);
+        const localNode = {
+          id: localNodeId,
+          children: [],
+          parent: node.id,
+          internal: {
+            type: "LocalAsset",
+            owner: "",
+            contentDigest: fileNode.internal.contentDigest,
+          },
+        };
 
-        if (fileNode) node.localFile = fileNode.id;
+        // if (fileNode) {
+        //   node.localFile = fileNode.id;
+        // }
+        // createNode(localNode);
+        // createParentChildLink({ parent: localNode, child: fileNode });
+        // createParentChildLink({ parent: node, child: localNode });
+        createParentChildLink({ parent: node, child: fileNode });
       } catch (e) {
         console.error("gatsby-source-graphcms:", e);
       }
@@ -453,12 +492,18 @@ export async function onCreateNode(
         createNode(markdownNode);
 
         (field.value as any).markdownNode = markdownNode.id;
+        if (!shownMarkdownWarning) {
+          shownMarkdownWarning = true;
+          reporter.warn(
+            "Mutated node for markdown - not supported in v4 or LMDB_STORE"
+          );
+        }
       });
     }
   }
 }
 
-async function customiseSchema(
+function customiseSchema(
   { createTypes }: Actions,
   { typePrefix }: RealPluginOptions,
   { gatsbyNodeTypes }: ISchemaInformation
@@ -481,9 +526,15 @@ export async function createSchemaCustomization(
     downloadAllAssets,
     downloadLocalImages,
     typePrefix,
+    defaultStage,
   } = pluginOptions;
-  const { actions } = gatsbyApi;
+  const { actions, reporter } = gatsbyApi;
   const { createTypes } = actions;
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.info(`no default stage for GraphCMS`);
+  }
 
   const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
   const config = await createSourcingConfig(
@@ -491,16 +542,20 @@ export async function createSchemaCustomization(
     gatsbyApi,
     pluginOptions
   );
-  await customiseSchema(actions, pluginOptions, schemaConfig);
+  customiseSchema(actions, pluginOptions, schemaConfig);
   await createToolkitSchemaCustomization(config);
 
-  if (downloadLocalImages || downloadAllAssets)
-    createTypes(`
-      type ${typePrefix}Asset {
-        localFile: File @link
-      }
-    `);
+  // if (downloadLocalImages || downloadAllAssets)
+  //   createTypes(`
+  //     type ${typePrefix}Asset {
+  //       localFile: File @link
+  //       childFile: File @link
+  //       childImageSharp: ImageSharp @link
 
+  //     }
+  //   `);
+
+  // localAsset: LocalAsset @link
   if (buildMarkdownNodes)
     createTypes(`
       type ${typePrefix}MarkdownNode implements Node {

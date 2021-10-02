@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.pluginOptionsSchema = pluginOptionsSchema;
+exports.createResolvers = createResolvers;
 exports.sourceNodes = sourceNodes;
 exports.onCreateNode = onCreateNode;
 exports.createSchemaCustomization = createSchemaCustomization;
@@ -57,12 +58,6 @@ function createExecutor(gatsbyApi, pluginOptions) {
     reporter
   } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
-
-  if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
-  } else {
-    reporter.info(`no default stage for GraphCMS`);
-  }
 
   const execute = async ({
     operationName,
@@ -168,13 +163,6 @@ async function createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions) {
     reporter
   } = gatsbyApi;
   const defaultStage = stages && stages.length === 1 && stages[0];
-
-  if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
-  } else {
-    reporter.info(`no default stage for GraphCMS`);
-  }
-
   const execute = createExecutor(gatsbyApi, pluginOptions);
   const {
     schema,
@@ -215,6 +203,42 @@ async function createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions) {
   };
 }
 
+function createResolvers(args, pluginOptions) {
+  const {
+    createResolvers,
+    reporter
+  } = args;
+  const {
+    typePrefix
+  } = pluginOptions;
+  const resolvers = {
+    [`${typePrefix}Asset`]: {
+      localFile: {
+        type: "File",
+
+        resolve(source, args, context, info) {
+          var _source$children;
+
+          if ((_source$children = source.children) !== null && _source$children !== void 0 && _source$children.length) {
+            for (const id of source.children) {
+              const file = context.nodeModel.getNodeById({
+                id,
+                type: "File"
+              });
+
+              if (file) {
+                return file;
+              }
+            }
+          }
+        }
+
+      }
+    }
+  };
+  createResolvers(resolvers);
+}
+
 async function sourceNodes(gatsbyApi, pluginOptions) {
   const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
   const config = await createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions);
@@ -247,7 +271,7 @@ function isAssetUsed(node, reporter) {
     if (Array.isArray(value)) {
       for (const entry of value) {
         if (entry.remoteId) {
-          reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
+          // reporter.verbose(`${node.fileName} used by ${entry.remoteTypeName}`);
           used = true;
           break;
         }
@@ -262,11 +286,14 @@ function isAssetUsed(node, reporter) {
   return used;
 }
 
+let shownMarkdownWarning = false;
+
 async function onCreateNode(args, pluginOptions) {
   const {
     node,
     actions: {
-      createNode
+      createNode,
+      createParentChildLink
     },
     createNodeId,
     getCache,
@@ -284,8 +311,9 @@ async function onCreateNode(args, pluginOptions) {
   const isImage = node.remoteTypeName === "Asset" && node.width && node.height;
 
   if (node.remoteTypeName === "Asset" && (downloadAllAssets || downloadLocalImages && isImage)) {
-    if (skipUnusedAssets && !isAssetUsed(node, reporter)) {
-      reporter.verbose(`Skipping unused asset ${node.fileName} ${node.remoteId}`);
+    if (skipUnusedAssets && !isAssetUsed(node, reporter)) {// reporter.verbose(
+      //   `Skipping unused asset ${node.fileName} ${node.remoteId}`
+      // );
     } else {
       if (node.size > 10 * 1024 * 1024) {
         reporter.warn(`Asset ${node.fileName} ${node.remoteId} is too large: ${node.size}`);
@@ -298,6 +326,7 @@ async function onCreateNode(args, pluginOptions) {
 
         const name = node.fileName && _path.default.basename(node.fileName, ext);
 
+        const localNodeId = createNodeId(`${node.id} >> LocalFile`);
         const fileNode = await (0, _gatsbySourceFilesystem.createRemoteFileNode)({
           url: realUrl,
           parentNodeId: node.id,
@@ -310,7 +339,26 @@ async function onCreateNode(args, pluginOptions) {
           name,
           ext
         });
-        if (fileNode) node.localFile = fileNode.id;
+        const localNode = {
+          id: localNodeId,
+          children: [],
+          parent: node.id,
+          internal: {
+            type: "LocalAsset",
+            owner: "",
+            contentDigest: fileNode.internal.contentDigest
+          }
+        }; // if (fileNode) {
+        //   node.localFile = fileNode.id;
+        // }
+        // createNode(localNode);
+        // createParentChildLink({ parent: localNode, child: fileNode });
+        // createParentChildLink({ parent: node, child: localNode });
+
+        createParentChildLink({
+          parent: node,
+          child: fileNode
+        });
       } catch (e) {
         console.error("gatsby-source-graphcms:", e);
       }
@@ -340,12 +388,17 @@ async function onCreateNode(args, pluginOptions) {
         };
         createNode(markdownNode);
         field.value.markdownNode = markdownNode.id;
+
+        if (!shownMarkdownWarning) {
+          shownMarkdownWarning = true;
+          reporter.warn("Mutated node for markdown - not supported in v4 or LMDB_STORE");
+        }
       });
     }
   }
 }
 
-async function customiseSchema({
+function customiseSchema({
   createTypes
 }, {
   typePrefix
@@ -366,23 +419,36 @@ async function createSchemaCustomization(gatsbyApi, pluginOptions) {
     buildMarkdownNodes,
     downloadAllAssets,
     downloadLocalImages,
-    typePrefix
+    typePrefix,
+    defaultStage
   } = pluginOptions;
   const {
-    actions
+    actions,
+    reporter
   } = gatsbyApi;
   const {
     createTypes
   } = actions;
+
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.info(`no default stage for GraphCMS`);
+  }
+
   const schemaConfig = await retrieveSchema(gatsbyApi, pluginOptions);
   const config = await createSourcingConfig(schemaConfig, gatsbyApi, pluginOptions);
-  await customiseSchema(actions, pluginOptions, schemaConfig);
-  await (0, _gatsbyGraphqlSourceToolkit.createSchemaCustomization)(config);
-  if (downloadLocalImages || downloadAllAssets) createTypes(`
-      type ${typePrefix}Asset {
-        localFile: File @link
-      }
-    `);
+  customiseSchema(actions, pluginOptions, schemaConfig);
+  await (0, _gatsbyGraphqlSourceToolkit.createSchemaCustomization)(config); // if (downloadLocalImages || downloadAllAssets)
+  //   createTypes(`
+  //     type ${typePrefix}Asset {
+  //       localFile: File @link
+  //       childFile: File @link
+  //       childImageSharp: ImageSharp @link
+  //     }
+  //   `);
+  // localAsset: LocalAsset @link
+
   if (buildMarkdownNodes) createTypes(`
       type ${typePrefix}MarkdownNode implements Node {
         id: ID!
