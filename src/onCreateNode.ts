@@ -107,11 +107,13 @@ export async function onCreateNode(
 ) {
   const {
     node,
-    actions: { createNode, createParentChildLink },
+    actions: { createNode, touchNode, createParentChildLink },
     createNodeId,
     reporter,
   } = args;
   const { buildMarkdownNodes, typePrefix } = pluginOptions;
+
+  const doLog = node.remoteId === "cktct75zs2su30c9582xkka6r";
 
   if (node.remoteTypeName === "Asset") {
     const fileNode = await createImageNodeIfRequired(
@@ -119,7 +121,11 @@ export async function onCreateNode(
       args,
       pluginOptions
     );
+    if (doLog) {
+      console.log({ fileNode });
+    }
     if (fileNode) {
+      touchNode(fileNode);
       const localNode: GraphCMS_FileLink = {
         id: `FileLink:${node.id}`,
         downloadedAsset: fileNode.id,
@@ -133,6 +139,9 @@ export async function onCreateNode(
       };
       createNode(localNode);
       createParentChildLink({ parent: node, child: localNode });
+      if (doLog) {
+        console.log({ localNode });
+      }
     }
 
     return;
