@@ -1,5 +1,5 @@
 import { CreateResolversArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
-import { AssetReference, GraphCMS_Node, PluginOptions } from "./types";
+import { GraphCMS_FileLink, GraphCMS_Node, PluginOptions } from "./types";
 import {
   GatsbyGraphQLResolveInfo,
   IGatsbyResolverContext,
@@ -22,10 +22,19 @@ export function createResolvers(
           context: IGatsbyResolverContext<GraphCMS_Node, unknown>,
           info: GatsbyGraphQLResolveInfo
         ) {
+          const { path, nodeModel } = context;
+
           if (source.children?.length) {
             for (const id of source.children) {
-              const file = context.nodeModel.getNodeById({ id, type: "File" });
-              if (file) {
+              const fileLink = context.nodeModel.getNodeById({
+                id,
+                type: `${typePrefix}FileLink`,
+              }) as GraphCMS_FileLink;
+              if (fileLink) {
+                const file = context.nodeModel.getNodeById({
+                  id: fileLink.downloadedAsset,
+                  type: "File",
+                });
                 return file;
               }
             }

@@ -26,23 +26,26 @@ export interface PluginState {
   schemaInformation?: ISchemaInformation;
 }
 
-export interface AssetReference {
-  remoteTypeName: string;
-  remoteId: string;
-  stage: string;
-  locale: string;
-}
-
 export type GraphCMS_Node = Node & {
-  mimeType: string;
-  url: string;
   remoteTypeName?: string;
   remoteId?: string;
-  markdown?: string;
+  stage: string;
+  locale: string;
+};
+
+export type GraphCMS_Asset = GraphCMS_Node & {
+  mimeType: string;
+  url: string;
   fileName: string;
   height?: number;
   width?: number;
   size: number;
-  stage: string;
-  locale: string;
+};
+
+export type GraphCMS_FileLink = Node & {
+  downloadedAsset: string;
+};
+
+export type GraphCMS_Markdown = GraphCMS_Node & {
+  markdown?: string;
 };

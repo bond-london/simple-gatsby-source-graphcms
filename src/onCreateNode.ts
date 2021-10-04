@@ -1,7 +1,12 @@
 import { extname, basename } from "path";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
-import { CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
-import { AssetReference, GraphCMS_Node, PluginOptions } from "./types";
+import { Node, CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
+import {
+  GraphCMS_Asset,
+  GraphCMS_FileLink,
+  GraphCMS_Node,
+  PluginOptions,
+} from "./types";
 import { decode } from "he";
 import crypto from "crypto";
 
@@ -28,7 +33,7 @@ function isAssetUsed(node: GraphCMS_Node) {
   if (!remoteId) return false;
   for (const [key, value] of fields) {
     if (Array.isArray(value)) {
-      for (const entry of value as AssetReference[]) {
+      for (const entry of value as GraphCMS_Asset[]) {
         if (entry.remoteId) {
           return true;
         }
@@ -39,7 +44,7 @@ function isAssetUsed(node: GraphCMS_Node) {
 }
 
 async function createImageNodeIfRequired(
-  node: GraphCMS_Node,
+  node: GraphCMS_Asset,
   args: ParentSpanPluginArgs,
   options: PluginOptions
 ) {
@@ -59,6 +64,7 @@ async function createImageNodeIfRequired(
 
   const isImage = !!(node.width && node.height);
   const isUsed = isAssetUsed(node);
+
   if (
     (!skipUnusedAssets || isUsed) &&
     (downloadAllAssets || (downloadLocalImages && isImage))
@@ -76,10 +82,8 @@ async function createImageNodeIfRequired(
           : node.url;
       const ext = node.fileName && extname(node.fileName);
       const name = node.fileName && basename(node.fileName, ext);
-      const localNodeId = createNodeId(`${node.id} >> LocalFile`);
       const fileNode = await createRemoteFileNode({
         url: realUrl,
-        parentNodeId: node.id,
         createNode,
         createNodeId,
         getCache,
@@ -110,10 +114,28 @@ export async function onCreateNode(
   const { buildMarkdownNodes, typePrefix } = pluginOptions;
 
   if (node.remoteTypeName === "Asset") {
-    const fileNode = await createImageNodeIfRequired(node, args, pluginOptions);
+    const fileNode = await createImageNodeIfRequired(
+      node as GraphCMS_Asset,
+      args,
+      pluginOptions
+    );
     if (fileNode) {
-      createParentChildLink({ parent: node, child: fileNode });
+      const localNode: GraphCMS_FileLink = {
+        id: `FileLink:${node.id}`,
+        downloadedAsset: fileNode.id,
+        parent: node.id,
+        children: [],
+        internal: {
+          type: `${typePrefix}FileLink`,
+          contentDigest: fileNode.internal.contentDigest,
+          owner: "",
+        },
+      };
+      createNode(localNode);
+      createParentChildLink({ parent: node, child: localNode });
     }
+
+    return;
   }
 
   if (buildMarkdownNodes) {
