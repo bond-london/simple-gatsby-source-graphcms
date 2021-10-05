@@ -1,6 +1,6 @@
 import { extname, basename } from "path";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
-import { Node, CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
+import { CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
 import {
   GraphCMS_Asset,
   GraphCMS_FileLink,
@@ -113,17 +113,12 @@ export async function onCreateNode(
   } = args;
   const { buildMarkdownNodes, typePrefix } = pluginOptions;
 
-  const doLog = node.remoteId === "cktct75zs2su30c9582xkka6r";
-
   if (node.remoteTypeName === "Asset") {
     const fileNode = await createImageNodeIfRequired(
       node as GraphCMS_Asset,
       args,
       pluginOptions
     );
-    if (doLog) {
-      console.log({ fileNode });
-    }
     if (fileNode) {
       touchNode(fileNode);
       const localNode: GraphCMS_FileLink = {
@@ -139,9 +134,6 @@ export async function onCreateNode(
       };
       createNode(localNode);
       createParentChildLink({ parent: node, child: localNode });
-      if (doLog) {
-        console.log({ localNode });
-      }
     }
 
     return;
