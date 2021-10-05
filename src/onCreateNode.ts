@@ -108,17 +108,12 @@ export async function onCreateNode(
   } = args;
   const { buildMarkdownNodes, typePrefix } = pluginOptions;
 
-  const doLog = node.remoteId === "cktct75zs2su30c9582xkka6r";
-
   if (node.remoteTypeName === "Asset") {
     const fileNode = await createImageNodeIfRequired(
       node as GraphCMS_Asset,
       args,
       pluginOptions
     );
-    if (doLog) {
-      console.log({ fileNode });
-    }
     if (fileNode) {
       createParentChildLink({ parent: node, child: fileNode });
     }
