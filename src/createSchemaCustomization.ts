@@ -50,14 +50,6 @@ export async function createSchemaCustomization(
   customiseSchema(actions, pluginOptions, schemaConfig);
   await createToolkitSchemaCustomization(config);
 
-  if (downloadLocalImages || downloadAllAssets) {
-    createTypes(`
-      type ${typePrefix}FileLink implements Node {
-        downloadedAsset: File @link
-      }
-    `);
-  }
-
   // localAsset: LocalAsset @link
   if (buildMarkdownNodes)
     createTypes(`

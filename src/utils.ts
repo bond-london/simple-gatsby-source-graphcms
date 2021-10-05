@@ -11,7 +11,12 @@ import {
   IQueryExecutor,
   ISourcingConfig,
 } from "gatsby-graphql-source-toolkit/dist/types";
-import { ISchemaInformation, PluginOptions, PluginState } from "./types";
+import {
+  GraphCMS_Asset,
+  ISchemaInformation,
+  PluginOptions,
+  PluginState,
+} from "./types";
 
 export const stateCache: PluginState = {};
 

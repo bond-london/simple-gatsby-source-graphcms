@@ -1,5 +1,5 @@
-import { CreateResolversArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
-import { GraphCMS_FileLink, GraphCMS_Node, PluginOptions } from "./types";
+import { CreateResolversArgs } from "gatsby";
+import { GraphCMS_Node, PluginOptions } from "./types";
 import {
   GatsbyGraphQLResolveInfo,
   IGatsbyResolverContext,
@@ -9,7 +9,10 @@ export function createResolvers(
   args: CreateResolversArgs,
   pluginOptions: PluginOptions
 ): void {
-  const { createResolvers: toolkitCreateResolvers } = args;
+  const {
+    createResolvers: toolkitCreateResolvers,
+    getNodeAndSavePathDependency,
+  } = args;
   const { typePrefix } = pluginOptions;
 
   const resolvers = {
@@ -26,16 +29,9 @@ export function createResolvers(
 
           if (source.children?.length) {
             for (const id of source.children) {
-              const fileLink = context.nodeModel.getNodeById({
-                id,
-                type: `${typePrefix}FileLink`,
-              }) as GraphCMS_FileLink;
-              if (fileLink) {
-                const file = context.nodeModel.getNodeById({
-                  id: fileLink.downloadedAsset,
-                  type: "File",
-                });
-                return file;
+              const child = getNodeAndSavePathDependency(id, context.path);
+              if (child.internal.type === "File") {
+                return child;
               }
             }
           }

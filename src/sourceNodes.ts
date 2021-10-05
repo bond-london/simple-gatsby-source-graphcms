@@ -1,25 +1,7 @@
-import { Node, ParentSpanPluginArgs, SourceNodesArgs } from "gatsby";
+import { ParentSpanPluginArgs, SourceNodesArgs } from "gatsby";
 import { sourceAllNodes } from "gatsby-graphql-source-toolkit";
-import { GraphCMS_FileLink, PluginOptions } from "./types";
+import { GraphCMS_Asset, PluginOptions } from "./types";
 import { createSourcingConfig, stateCache } from "./utils";
-
-function keepNodesAlive<T extends Node>(
-  gatsbyApi: ParentSpanPluginArgs,
-  nodeType: string,
-  handler?: (node: T) => void
-) {
-  const {
-    getNodesByType,
-    reporter,
-    actions: { touchNode },
-  } = gatsbyApi;
-  const nodes = getNodesByType(nodeType) as T[];
-  reporter.info(`Keeping alive ${nodes.length} nodes of type ${nodeType}`);
-  nodes.forEach((node) => {
-    touchNode(node);
-    handler?.(node);
-  });
-}
 
 function keepAssetsAlive(
   gatsbyApi: ParentSpanPluginArgs,
@@ -27,24 +9,20 @@ function keepAssetsAlive(
 ) {
   const {
     getNode,
+    getNodesByType,
     reporter,
     actions: { touchNode },
   } = gatsbyApi;
   const { typePrefix } = options;
 
-  keepNodesAlive(gatsbyApi, `${typePrefix}Asset`);
-  keepNodesAlive<GraphCMS_FileLink>(
-    gatsbyApi,
-    `${typePrefix}FileLink`,
-    (fl) => {
-      const fileNode = getNode(fl.downloadedAsset);
-      if (!fileNode) {
-        reporter.warn(`No file node of id ${fl.downloadedAsset}`);
-      } else {
-        touchNode(fileNode);
-      }
+  const nodes = getNodesByType(`${typePrefix}Asset`) as GraphCMS_Asset[];
+  reporter.info(`Keeping alive ${nodes.length} Assets`);
+  nodes.forEach((node) => {
+    for (const id of node.children) {
+      const child = getNode(id);
+      touchNode(child);
     }
-  );
+  });
 }
 
 export async function sourceNodes(
@@ -56,11 +34,11 @@ export async function sourceNodes(
   if (!schemaConfig) {
     reporter.panic("No schema configuration");
   }
+  keepAssetsAlive(gatsbyApi, pluginOptions);
   const config = await createSourcingConfig(
     schemaConfig,
     gatsbyApi,
     pluginOptions
   );
   await sourceAllNodes(config);
-  keepAssetsAlive(gatsbyApi, pluginOptions);
 }

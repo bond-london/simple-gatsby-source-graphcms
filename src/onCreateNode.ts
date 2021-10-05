@@ -1,12 +1,7 @@
 import { extname, basename } from "path";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
-import { Node, CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
-import {
-  GraphCMS_Asset,
-  GraphCMS_FileLink,
-  GraphCMS_Node,
-  PluginOptions,
-} from "./types";
+import { CreateNodeArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
+import { GraphCMS_Asset, GraphCMS_Node, PluginOptions } from "./types";
 import { decode } from "he";
 import crypto from "crypto";
 
@@ -125,23 +120,7 @@ export async function onCreateNode(
       console.log({ fileNode });
     }
     if (fileNode) {
-      touchNode(fileNode);
-      const localNode: GraphCMS_FileLink = {
-        id: `FileLink:${node.id}`,
-        downloadedAsset: fileNode.id,
-        parent: node.id,
-        children: [],
-        internal: {
-          type: `${typePrefix}FileLink`,
-          contentDigest: fileNode.internal.contentDigest,
-          owner: "",
-        },
-      };
-      createNode(localNode);
-      createParentChildLink({ parent: node, child: localNode });
-      if (doLog) {
-        console.log({ localNode });
-      }
+      createParentChildLink({ parent: node, child: fileNode });
     }
 
     return;

@@ -42,10 +42,6 @@ export type GraphCMS_Asset = GraphCMS_Node & {
   size: number;
 };
 
-export type GraphCMS_FileLink = Node & {
-  downloadedAsset: string;
-};
-
 export type GraphCMS_Markdown = GraphCMS_Node & {
   markdown?: string;
 };
