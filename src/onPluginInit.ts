@@ -4,6 +4,7 @@ import { ISchemaInformation, PluginOptions } from "./types";
 import { createExecutor, stateCache } from "./utils";
 import { GraphQLAbstractType, GraphQLInterfaceType } from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
+import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
 
 async function retrieveSchema(
   gatsbyApi: NodePluginArgs,
@@ -71,10 +72,35 @@ async function retrieveSchema(
   return { schema, gatsbyNodeTypes };
 }
 
-export async function onPreBootstrap( // onPluginInit(
+function calculatePluginInit() {
+  try {
+    if (isGatsbyNodeLifecycleSupported("onPluginInit")) {
+      return "stable";
+    }
+    return "unstable";
+  } catch (e) {
+    console.error("Failed to check onPluginInit lifecycle", e);
+  }
+  return "unsupported";
+}
+
+async function initializeGlobalState(
   args: ParentSpanPluginArgs,
   options: PluginOptions
-): Promise<void> {
+) {
   const schemaInformation = await retrieveSchema(args, options);
   stateCache.schemaInformation = schemaInformation;
+}
+
+const pluginInitSupport = calculatePluginInit();
+switch (pluginInitSupport) {
+  case "stable":
+    exports.onPluginInit = initializeGlobalState;
+    break;
+  case "unstable":
+    exports.unstable_onPluginInit = initializeGlobalState;
+    break;
+  case "unsupported":
+    exports.onPreBootstrap = initializeGlobalState;
+    break;
 }
