@@ -8,12 +8,9 @@
     "node": ">=16"
   },
   "scripts": {
-    "build:ts": "babel src --out-dir dist --extensions .ts,.tsx",
-    "build:defs": "tsc --declaration --outDir dist --emitDeclarationOnly",
-    "dev:ts": "babel -w src --out-dir dist --extensions .ts,.tsx",
-    "dev:defs": "tsc -w --declaration --outDir dist --emitDeclarationOnly",
-    "dev": "run-p dev:ts dev:defs",
-    "prepare": "cross-env NODE_ENV=production yarn run build:ts && yarn run build:defs && husky install",
+    "build": "tsc --outDir dist",
+    "dev": "tsc -w --outDir dist",
+    "prepare": "cross-env NODE_ENV=production yarn run build && husky install",
     "format": "prettier --write \"**/*.{js,jsx,json,ts,tsx,md}\"",
     "release": "release-it"
   },
@@ -35,7 +32,6 @@
     "gatsby-plugin-image": "^2.0.0",
     "gatsby-plugin-utils": "^2.0.0",
     "gatsby-source-filesystem": "^4.0.0",
-    "he": "1.2.0",
     "node-fetch": "2"
   },
   "devDependencies": {

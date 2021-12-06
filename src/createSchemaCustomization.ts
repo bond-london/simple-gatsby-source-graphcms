@@ -13,6 +13,8 @@ function customiseSchema(
         updatedAt: Date! @dateformat
         createdAt: Date! @dateformat
         publishedAt: Date @dateformat
+        actualLocale: String
+        actualStage: String!
       }`);
   });
 }
@@ -23,12 +25,12 @@ export async function createSchemaCustomization(
 ): Promise<void> {
   const {
     buildMarkdownNodes,
+    markdownFields,
     downloadAllAssets,
-    downloadLocalImages,
     typePrefix,
     stages,
   } = pluginOptions;
-  const { actions, reporter } = gatsbyApi;
+  const { actions, schema, reporter } = gatsbyApi;
   const { createTypes } = actions;
   const defaultStage = stages?.length === 1 && stages[0];
   if (defaultStage) {
@@ -39,7 +41,7 @@ export async function createSchemaCustomization(
 
   const schemaConfig = stateCache.schemaInformation;
   if (!schemaConfig) {
-    reporter.panic("No schema configuration");
+    return reporter.panic("No schema configuration");
   }
 
   const config = await createSourcingConfig(
@@ -50,22 +52,33 @@ export async function createSchemaCustomization(
   customiseSchema(actions, pluginOptions, schemaConfig);
   await createToolkitSchemaCustomization(config);
 
-  if (downloadLocalImages || downloadAllAssets) {
-    createTypes(`
-      type ${typePrefix}FileLink implements Node {
-        downloadedAsset: File @link
-      }
-    `);
+  if (downloadAllAssets) {
+    createTypes(`type ${typePrefix}Asset implements Node {
+    localFile: File @link
+  }`);
   }
 
-  // localAsset: LocalAsset @link
-  if (buildMarkdownNodes)
+  if (buildMarkdownNodes || markdownFields) {
     createTypes(`
         type ${typePrefix}MarkdownNode implements Node {
           id: ID!
         }
-        type ${typePrefix}RichText {
-          markdownNode: ${typePrefix}MarkdownNode @link
-        }
       `);
+
+    if (buildMarkdownNodes) {
+      createTypes(`type ${typePrefix}RichText {
+        markdownNode: ${typePrefix}MarkdownNode @link
+      }`);
+    }
+
+    Object.keys(markdownFields).forEach((type) => {
+      const fields = markdownFields[type];
+      createTypes(`type ${typePrefix}${type} implements Node {
+        ${fields.map(
+          (field) => `${field}MarkdownNode: ${typePrefix}MarkdownNode @link
+        `
+        )}
+      }`);
+    });
+  }
 }

@@ -8,12 +8,64 @@ import {
   wrapQueryExecutorWithQueue,
 } from "gatsby-graphql-source-toolkit";
 import {
+  IQueryExecutionArgs,
   IQueryExecutor,
   ISourcingConfig,
 } from "gatsby-graphql-source-toolkit/dist/types";
+import { GraphQLField, ExecutionResult } from "graphql";
 import { ISchemaInformation, PluginOptions, PluginState } from "./types";
 
 export const stateCache: PluginState = {};
+
+function postprocessData(
+  gatsbyApi: NodePluginArgs,
+  args: IQueryExecutionArgs,
+  result: ExecutionResult
+): ExecutionResult {
+  const { reporter } = gatsbyApi;
+  const { operationName } = args;
+  if (!operationName.startsWith("LIST_")) {
+    return result;
+  }
+  const split = operationName.split("_");
+  if (split.length !== 4) {
+    return reporter.panic(
+      `Operation name (${operationName}) should contain 4 entries`
+    );
+  }
+
+  const [, , locale, stage] = split;
+
+  const { data } = result;
+  if (!data) {
+    return result;
+  }
+
+  const updatedData: { [key: string]: any } = {};
+  for (const key in data) {
+    const values = data[key];
+    if (Array.isArray(values)) {
+      const newValues = values.map(
+        ({ locale: actualLocale, stage: actualStage, ...rest }) => {
+          const newValue = {
+            ...rest,
+            stage,
+            actualStage,
+          };
+          if (actualLocale) {
+            newValue.actualLocale = actualLocale;
+            newValue.locale = locale;
+          }
+          return newValue;
+        }
+      );
+      updatedData[key] = newValues;
+    } else {
+      updatedData[key] = values;
+    }
+  }
+  return { ...result, data: updatedData };
+}
 
 export function createExecutor(
   gatsbyApi: NodePluginArgs,
@@ -23,8 +75,9 @@ export function createExecutor(
     pluginOptions;
   const { reporter } = gatsbyApi;
   const defaultStage = stages?.length === 1 && stages[0];
-  const execute = async ({ operationName, query, variables = {} }) => {
-    return await fetch(endpoint, {
+  const execute = (args: IQueryExecutionArgs) => {
+    const { operationName, query, variables = {} } = args;
+    return fetch(endpoint, {
       method: "POST",
       body: JSON.stringify({ query, variables, operationName }),
       headers: {
@@ -51,7 +104,11 @@ export function createExecutor(
           );
         }
 
-        return response;
+        return response as ExecutionResult;
+      })
+      .then((response) => {
+        const post = postprocessData(gatsbyApi, args, response);
+        return post;
       })
       .catch((error) => {
         return reporter.panic(
@@ -79,7 +136,7 @@ export async function createSourcingConfig(
 
   await mkdir(fragmentsDir, { recursive: true });
 
-  const addSystemFieldArguments = (field) => {
+  const addSystemFieldArguments = (field: GraphQLField<any, any>) => {
     if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) {
       return { variation: `COMBINED` };
     }

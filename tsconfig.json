@@ -1,14 +1,19 @@
 {
   "compilerOptions": {
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "importHelpers": true,
     "baseUrl": "./src",
     "paths": {
       "~/*": ["*"]
     },
     "lib": ["ESNext", "DOM"],
-    "target": "ES6",
+    "target": "ES5",
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "declaration": true,
+    "downlevelIteration": true
   },
   "include": ["src"]
 }

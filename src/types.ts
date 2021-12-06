@@ -4,7 +4,6 @@ import { GraphQLSchema } from "graphql";
 
 export interface PluginOptions {
   buildMarkdownNodes: boolean;
-  downloadLocalImages: boolean;
   downloadAllAssets: boolean;
   endpoint: string;
   fragmentsPath: string;
@@ -12,9 +11,9 @@ export interface PluginOptions {
   token: string;
   typePrefix: string;
   locales: string[];
-  maxImageWidth: number;
-  skipUnusedAssets: boolean;
   concurrency: number;
+  concurrentDownloads: number;
+  markdownFields: { [key: string]: string[] };
 }
 
 export interface ISchemaInformation {

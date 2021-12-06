@@ -2,7 +2,11 @@ import { NodePluginArgs, ParentSpanPluginArgs } from "gatsby";
 import { loadSchema } from "gatsby-graphql-source-toolkit";
 import { ISchemaInformation, PluginOptions } from "./types";
 import { createExecutor, stateCache } from "./utils";
-import { GraphQLAbstractType, GraphQLInterfaceType } from "graphql";
+import {
+  GraphQLAbstractType,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+} from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
 
@@ -11,6 +15,7 @@ async function retrieveSchema(
   pluginOptions: PluginOptions
 ): Promise<ISchemaInformation> {
   const { locales, stages } = pluginOptions;
+  const { reporter } = gatsbyApi;
   const execute = createExecutor(gatsbyApi, pluginOptions);
   const schema = await loadSchema(execute);
 
@@ -19,17 +24,17 @@ async function retrieveSchema(
   const queryFields = query.getFields();
   const possibleTypes = schema.getPossibleTypes(nodeInterface);
 
-  const singularRootFieldName = (type) =>
+  const singularRootFieldName = (type: GraphQLObjectType) =>
     Object.keys(queryFields).find(
       (fieldName) => queryFields[fieldName].type === type
     );
 
-  const pluralRootFieldName = (type) =>
+  const pluralRootFieldName = (type: GraphQLObjectType) =>
     Object.keys(queryFields).find(
       (fieldName) => String(queryFields[fieldName].type) === `[${type.name}!]!`
     );
 
-  const hasLocaleField = (type) => type.getFields().locale;
+  const hasLocaleField = (type: GraphQLObjectType) => type.getFields().locale;
 
   const gatsbyNodeTypes: IGatsbyNodeConfig[] = possibleTypes.map((type) => ({
     remoteTypeName: type.name,
