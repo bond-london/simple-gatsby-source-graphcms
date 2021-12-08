@@ -19,7 +19,10 @@ export function pluginOptionsSchema(
       .description(
         `Download and cache all GraphCMS assets in your Gatsby project`
       )
-      .default(false),
+      .default(true),
+    skipUnusedAssets: Joi.boolean()
+      .description(`Skip downloading any unused assets`)
+      .default(true),
     endpoint: Joi.string()
       .description(
         `The endpoint URL for the GraphCMS project. This can be found in the [project settings UI](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`
@@ -60,7 +63,7 @@ export function pluginOptionsSchema(
     concurrentDownloads: Joi.number()
       .integer()
       .min(1)
-      .default(10)
+      .default(50)
       .description("The number of promises to run at one time"),
   });
 }

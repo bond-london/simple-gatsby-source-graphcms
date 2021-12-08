@@ -5,6 +5,7 @@ import { GraphQLSchema } from "graphql";
 export interface PluginOptions {
   buildMarkdownNodes: boolean;
   downloadAllAssets: boolean;
+  skipUnusedAssets: boolean;
   endpoint: string;
   fragmentsPath: string;
   stages: string[];

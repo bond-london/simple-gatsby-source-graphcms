@@ -11,6 +11,7 @@ import {
 import { PluginOptions } from "./types";
 import { createSourcingConfig, stateCache } from "./utils";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
+import { Sema } from "async-sema";
 
 interface IGraphCmsAsset extends IRemoteNode {
   mimeType: string;
@@ -19,6 +20,22 @@ interface IGraphCmsAsset extends IRemoteNode {
   height?: number;
   width?: number;
   size: number;
+}
+
+function isAssetUsed(node: IGraphCmsAsset) {
+  const fields = Object.entries(node);
+  const remoteId = node.remoteId;
+  if (!remoteId) return false;
+  for (const [key, value] of fields) {
+    if (Array.isArray(value)) {
+      for (const entry of value as IGraphCmsAsset[]) {
+        if (entry.remoteId) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 async function downloadAsset(
@@ -37,6 +54,7 @@ async function downloadAsset(
   }
   const ext = fileName && extname(fileName);
   const name = fileName && basename(fileName, ext);
+  reporter.info(`Downloading asset ${fileName} from ${url}`);
 
   const fileNode = await createRemoteFileNode({
     url,
@@ -49,22 +67,10 @@ async function downloadAsset(
     name,
     ext,
   } as any);
+  reporter.info(
+    `Downloaded asset ${fileName} from ${url} with id ${fileNode.id}`
+  );
   return fileNode.id;
-}
-
-async function distributeWorkload(workers: Promise<void>[], count: number) {
-  const methods = workers.slice();
-
-  async function task() {
-    while (methods.length > 0) {
-      const promise = methods.pop();
-      if (promise) {
-        await promise;
-      }
-    }
-  }
-
-  await Promise.all(new Array(count).fill(undefined).map(() => task()));
 }
 
 async function processDownloadableAssets(
@@ -72,22 +78,31 @@ async function processDownloadableAssets(
   context: ISourcingContext,
   remoteNodes: AsyncIterable<IRemoteNode>
 ) {
-  const { concurrentDownloads } = pluginOptions;
-  const queue: Promise<void>[] = [];
+  const { concurrentDownloads, skipUnusedAssets } = pluginOptions;
+  const allRemoteNodes: IRemoteNode[] = [];
 
   for await (const remoteNode of remoteNodes) {
-    const promise = createOrTouchAsset(pluginOptions, context, remoteNode);
-    queue.push(promise);
+    allRemoteNodes.push(remoteNode);
   }
-  await distributeWorkload(queue, concurrentDownloads);
+
+  const s = new Sema(concurrentDownloads);
+  await Promise.all(
+    allRemoteNodes.map(async (remoteNode) => {
+      await s.acquire();
+      try {
+        await createOrTouchAsset(context, skipUnusedAssets, remoteNode);
+      } finally {
+        s.release();
+      }
+    })
+  );
 }
 
 async function createOrTouchAsset(
-  pluginOptions: PluginOptions,
   context: ISourcingContext,
+  skipUnusedAssets: boolean,
   remoteNode: IRemoteNode
 ) {
-  const { typePrefix } = pluginOptions;
   const { gatsbyApi } = context;
   const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
   const { touchNode, createNode } = actions;
@@ -124,15 +139,18 @@ async function createOrTouchAsset(
   };
 
   const asset = remoteNode as IGraphCmsAsset;
-  try {
-    const localFileId = await downloadAsset(context, asset);
-    node.localFile = localFileId;
-  } catch (error) {
-    reporter.warn(
-      `Failed to process asset ${asset.url} (${asset.fileName}): ${
-        (error as Error).message || ""
-      }`
-    );
+  const shouldDownload = !skipUnusedAssets || isAssetUsed(asset);
+  if (shouldDownload) {
+    try {
+      const localFileId = await downloadAsset(context, asset);
+      node.localFile = localFileId;
+    } catch (error) {
+      reporter.warn(
+        `Failed to process asset ${asset.url} (${asset.fileName}): ${
+          (error as Error).message || ""
+        }`
+      );
+    }
   }
 
   createNode(node);

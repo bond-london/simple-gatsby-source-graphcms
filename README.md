@@ -1,13 +1,19 @@
-<h2 align="center">gatsby-source-graphcms</h2>
+<h2 align="center">@bond-london/simple-gatsby-source-graphcms</h2>
 
-<p align="center">The official Gatsby source plugin for GraphCMS projects • <a href="https://gatsby-source-graphcms.vercel.app">Demo</a> • <a href="https://github.com/GraphCMS/gatsby-starter-graphcms-blog">gatsby-starter-graphcms-blog</a></p>
+<p align="center">A port/rebuild of the official gatsby graphcms source plugin</p>
 
-This is copied from the main repository to test a few fixes and tweaks.
+This simplifies and adds some new features
+
+- Everything is handled in source nodes rather than later
+- Compatible with gatsby v4
+- Parallel asset downloading
+- Incremental downloading
+- Handles locales
 
 ## Installation
 
 ```shell
-yarn add gatsby-source-graphcms gatsby-plugin-image
+yarn add @bond-london/simple-gatsby-source-graphcms
 ```
 
 ## Configuration
@@ -56,12 +62,14 @@ module.exports = {
 | `endpoint`            | String (**required**)                    | The endpoint URL for the GraphCMS project. This can be found in the [project settings UI](https://graphcms.com/docs/guides/concepts/apis#working-with-apis).                                                                                                                                                                           |
 | `token`               | String                                   | If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis). |
 | `typePrefix`          | String _(Default: `GraphCMS_`)\_         | The string by which every generated type name is prefixed with. For example, a type of `Post` in GraphCMS would become `GraphCMS_Post` by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts.                                                                      |
-| `downloadLocalImages` | Boolean _(Default: `false`)_             | Download and cache GraphCMS image assets in your Gatsby project. [Learn more](#downloading-local-image-assets).                                                                                                                                                                                                                        |
 | `downloadAllAssets`   | Boolean _(Default: `false`)_             | Download and cache all GraphCMS assets in your Gatsby project. [Learn more](#downloading-local-image-assets).                                                                                                                                                                                                                          |
 | `buildMarkdownNodes`  | Boolean _(Default: `false`)_             | Build markdown nodes for all [`RichText`](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema. [Learn more](#using-markdown-nodes).                                                                                                                                                                   |
+| `markdownFields`      | Object _(Default: `{}`)_                 | Which models/fields are markdown causing a markdown node to be built. [Learn more](#using-markdown-fields).                                                                                                                                                                                                                            |
 | `fragmentsPath`       | String _(Default: `graphcms-fragments`)_ | The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts.                                                                                   |
-| `locales`             | String _(Default: `['en']`)_             | An array of locale key strings from your GraphCMS project. [Learn more](#querying-localised-nodes). You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).                                                                                                              |
+| `locales`             | String _(Default: `['en']`)_             | An array of locale key strings from your GraphCMS project. [Learn more](#querying-localised-nodes). You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n). This builds complete models for each locale using the fallback locale.                                       |
 | `stages`              | String _(Default: `['PUBLISHED']`)_      | An array of Content Stages from your GraphCMS project. [Learn more](#querying-from-content-stages). You can read more about using Content Stages [here](https://graphcms.com/guides/working-with-content-stages).                                                                                                                      |
+| `concurrency`         | Number _(Default: `10`)_                 | How many content downloads to run concurrently.                                                                                                                                                                                                                                                                                        |
+| `concurrentDownloads` | Number _(Default: `10`)_                 | How many asset downloads to run in parallel.                                                                                                                                                                                                                                                                                           |
 
 ## Features
 
@@ -70,6 +78,7 @@ module.exports = {
 - [Usage with `gatsby-plugin-image`](#usage-with-gatsby-plugin-image)
 - [Downloading local image assets](#downloading-local-image-assets)
 - [Using markdown nodes](#using-markdown-nodes)
+- [Using markdown nodes](#using-markdown-fields)
 - [Working with query fragments](#working-with-query-fragments)
 
 ### Querying localised nodes
@@ -105,7 +114,7 @@ To query for nodes for a specific locale, use the `filter` query argument.
 }
 ```
 
-Check out the [demo source](https://github.com/GraphCMS/gatsby-source-graphcms/tree/main/demo) for an example of a localisation implementation.
+This creates local content nodes for all the locales produced. This allows simple multiple locale sites to be produced from partially localised content in the CMS.
 
 ### Querying from content stages
 
@@ -180,7 +189,7 @@ For more information on using `gatsby-plugin-image`, please see the [documentati
 
 If you prefer, the source plugin also provides the option to download and cache GraphCMS assets in your Gatsby project.
 
-To enable this, add `downloadLocalImages: true` to your plugin configuration. This downloads all assets with a mime type starting with 'image/'. To download all assets, add `downloadAllAssets: true` to the configuration.
+To enable this, add `downloadAllAssets: true` to your plugin configuration. This downloads all assets.
 
 ```js
 // gatsby-config.js
@@ -190,7 +199,7 @@ module.exports = {
       resolve: "gatsby-source-graphcms",
       options: {
         endpoint: process.env.GRAPHCMS_ENDPOINT,
-        downloadLocalImages: true,
+        downloadAllAssets: true,
       },
     },
   ],
@@ -260,6 +269,29 @@ Once installed, you will be able to query for `MDX` fields using a query similar
 ```
 
 Check out the [demo source](https://github.com/GraphCMS/gatsby-source-graphcms/tree/main/demo) for an example of a full MDX implementation.
+
+### Using markdown fields
+
+This source plugin provides the option to build markdown nodes for all `RichText` fields in your GraphCMS schema, which in turn can be used with [MDX](https://mdxjs.com).
+
+To enable this, add something like `markdownFields: {Author: ['description']}` to your plugin configuration.
+
+```js
+// gatsby-config.js
+module.exports = {
+  plugins: [
+    {
+      resolve: "gatsby-source-graphcms",
+      options: {
+        endpoint: process.env.GRAPHCMS_ENDPOINT,
+        markdownFields: { Author: ["description"] },
+      },
+    },
+  ],
+};
+```
+
+Enabling this option adds a `descriptionMarkdownNode` field to the `description` fields on the `Author` schema. Other fields and schemas are added the same way
 
 ### Working with query fragments
 
