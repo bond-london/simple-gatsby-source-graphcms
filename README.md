@@ -9,6 +9,7 @@ This simplifies and adds some new features
 - Parallel asset downloading
 - Incremental downloading
 - Handles locales
+- Produces clean RTF
 
 ## Installation
 
@@ -63,6 +64,7 @@ module.exports = {
 | `token`               | String                                   | If your GraphCMS project is **not** publicly accessible, you will need to provide a [Permanent Auth Token](https://graphcms.com/docs/reference/authorization) to correctly authorize with the API. You can learn more about creating and managing API tokens [here](https://graphcms.com/docs/guides/concepts/apis#working-with-apis). |
 | `typePrefix`          | String _(Default: `GraphCMS_`)\_         | The string by which every generated type name is prefixed with. For example, a type of `Post` in GraphCMS would become `GraphCMS_Post` by default. If using multiple instances of the source plugin, you **must** provide a value here to prevent type conflicts.                                                                      |
 | `downloadAllAssets`   | Boolean _(Default: `false`)_             | Download and cache all GraphCMS assets in your Gatsby project. [Learn more](#downloading-local-image-assets).                                                                                                                                                                                                                          |
+| `cleanupRtf`          | Boolean _(Default: `true`)_              | Create a cleaned node in [`RichText`](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema. These don't have empty elements and have replaced whitespace with a single space.                                                                                                                          |
 | `buildMarkdownNodes`  | Boolean _(Default: `false`)_             | Build markdown nodes for all [`RichText`](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema. [Learn more](#using-markdown-nodes).                                                                                                                                                                   |
 | `markdownFields`      | Object _(Default: `{}`)_                 | Which models/fields are markdown causing a markdown node to be built. [Learn more](#using-markdown-fields).                                                                                                                                                                                                                            |
 | `fragmentsPath`       | String _(Default: `graphcms-fragments`)_ | The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts.                                                                                   |

@@ -17,6 +17,20 @@ import { ISchemaInformation, PluginOptions, PluginState } from "./types";
 
 export const stateCache: PluginState = {};
 
+function postprocessValue(locale: String, stage: string, value: any) {
+  const { locale: actualLocale, stage: actualStage, ...rest } = value;
+  const newValue = {
+    ...rest,
+    stage,
+    actualStage,
+  };
+  if (actualLocale) {
+    newValue.actualLocale = actualLocale;
+    newValue.locale = locale;
+  }
+  return newValue;
+}
+
 function postprocessData(
   gatsbyApi: NodePluginArgs,
   args: IQueryExecutionArgs,
@@ -34,7 +48,11 @@ function postprocessData(
     );
   }
 
-  const [, , locale, stage] = split;
+  const [, , possibleLocale, stage] = split;
+  const locale =
+    possibleLocale.length === 2
+      ? possibleLocale
+      : possibleLocale.substring(0, 2) + "_" + possibleLocale.substring(2);
 
   const { data } = result;
   if (!data) {
@@ -45,19 +63,8 @@ function postprocessData(
   for (const key in data) {
     const values = data[key];
     if (Array.isArray(values)) {
-      const newValues = values.map(
-        ({ locale: actualLocale, stage: actualStage, ...rest }) => {
-          const newValue = {
-            ...rest,
-            stage,
-            actualStage,
-          };
-          if (actualLocale) {
-            newValue.actualLocale = actualLocale;
-            newValue.locale = locale;
-          }
-          return newValue;
-        }
+      const newValues = values.map((value) =>
+        postprocessValue(locale, stage, value)
       );
       updatedData[key] = newValues;
     } else {

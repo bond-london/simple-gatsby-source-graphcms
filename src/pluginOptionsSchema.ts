@@ -15,6 +15,9 @@ export function pluginOptionsSchema(
         `Build markdown nodes for all [RichText](https://graphcms.com/docs/reference/fields/rich-text) fields in your GraphCMS schema`
       )
       .default(false),
+    cleanupRtf: Joi.boolean()
+      .description("Cleanup RTF nodes removing empty ones and cleanin up text")
+      .default(true),
     downloadAllAssets: Joi.boolean()
       .description(
         `Download and cache all GraphCMS assets in your Gatsby project`

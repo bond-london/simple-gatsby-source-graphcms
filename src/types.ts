@@ -15,6 +15,7 @@ export interface PluginOptions {
   concurrency: number;
   concurrentDownloads: number;
   markdownFields: { [key: string]: string[] };
+  cleanupRtf: boolean;
 }
 
 export interface ISchemaInformation {
@@ -24,6 +25,7 @@ export interface ISchemaInformation {
 
 export interface PluginState {
   schemaInformation?: ISchemaInformation;
+  richTextMap?: Map<string, string[]>;
 }
 
 export type GraphCMS_Node = Node & {

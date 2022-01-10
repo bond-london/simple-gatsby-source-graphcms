@@ -2,6 +2,7 @@ import { Actions, CreateSchemaCustomizationArgs } from "gatsby";
 import { ISchemaInformation, PluginOptions } from "./types";
 import { createSourcingConfig, stateCache } from "./utils";
 import { createSchemaCustomization as createToolkitSchemaCustomization } from "gatsby-graphql-source-toolkit";
+import { capitalize } from "lodash";
 
 function customiseSchema(
   { createTypes }: Actions,
@@ -29,6 +30,7 @@ export async function createSchemaCustomization(
     downloadAllAssets,
     typePrefix,
     stages,
+    cleanupRtf,
   } = pluginOptions;
   const { actions, schema, reporter } = gatsbyApi;
   const { createTypes } = actions;
@@ -44,6 +46,11 @@ export async function createSchemaCustomization(
     return reporter.panic("No schema configuration");
   }
 
+  const richTextMap = stateCache.richTextMap;
+  if (!richTextMap) {
+    return reporter.panic("No rich text map");
+  }
+
   const config = await createSourcingConfig(
     schemaConfig,
     gatsbyApi,
@@ -51,6 +58,16 @@ export async function createSchemaCustomization(
   );
   customiseSchema(actions, pluginOptions, schemaConfig);
   await createToolkitSchemaCustomization(config);
+
+  if (cleanupRtf) {
+    richTextMap.forEach((fields, type) => {
+      fields.forEach((field) => {
+        createTypes(`type ${typePrefix}${type}${capitalize(field)}RichText {
+          cleaned: JSON
+        }`);
+      });
+    });
+  }
 
   if (downloadAllAssets) {
     createTypes(`type ${typePrefix}Asset implements Node {

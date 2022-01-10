@@ -39,12 +39,13 @@ async function retrieveSchema(
   const gatsbyNodeTypes: IGatsbyNodeConfig[] = possibleTypes.map((type) => ({
     remoteTypeName: type.name,
     queries: [
-      ...locales.map((locale) =>
-        stages.map(
+      ...locales.map((locale) => {
+        const localeLabel = locale.replace("_", "");
+        return stages.map(
           (stage) => `
             query LIST_${pluralRootFieldName(
               type
-            )}_${locale}_${stage} { ${pluralRootFieldName(
+            )}_${localeLabel}_${stage} { ${pluralRootFieldName(
             type
           )}(first: $limit, ${
             hasLocaleField(type) ? `locales: [${locale}, ${locales[0]}]` : ""
@@ -52,8 +53,8 @@ async function retrieveSchema(
                 ..._${type.name}Id_
               }
             }`
-        )
-      ),
+        );
+      }),
       `query NODE_${singularRootFieldName(type)}{ ${singularRootFieldName(
         type
       )}(where: $where, ${hasLocaleField(type) ? `locales: $locales` : ""}) {
@@ -89,12 +90,33 @@ function calculatePluginInit() {
   return "unsupported";
 }
 
+function identifyRichTextNodes({ schema }: ISchemaInformation) {
+  const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
+  const possibleTypes = schema.getPossibleTypes(nodeInterface);
+
+  const richTextMap = new Map<string, string[]>();
+  possibleTypes.forEach((type) => {
+    const fields: string[] = [];
+    Object.entries(type.getFields()).forEach(([key, value]) => {
+      const type = value.type as GraphQLObjectType;
+      if (type && type.name?.endsWith("RichText")) {
+        fields.push(key);
+      }
+    });
+    if (fields.length) {
+      richTextMap.set(type.name, fields);
+    }
+  });
+  return richTextMap;
+}
+
 async function initializeGlobalState(
   args: ParentSpanPluginArgs,
   options: PluginOptions
 ) {
   const schemaInformation = await retrieveSchema(args, options);
   stateCache.schemaInformation = schemaInformation;
+  stateCache.richTextMap = identifyRichTextNodes(schemaInformation);
 }
 
 const pluginInitSupport = calculatePluginInit();

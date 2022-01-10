@@ -28,6 +28,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@graphcms/rich-text-types": "^0.3.1",
     "async-sema": "^3.1.1",
     "gatsby-graphql-source-toolkit": "^2.0.1",
     "gatsby-plugin-image": "^2.0.0",
@@ -36,13 +37,7 @@
     "node-fetch": "2"
   },
   "devDependencies": {
-    "@babel/cli": "^7.14.5",
-    "@babel/core": "^7.15.8",
-    "@babel/plugin-transform-runtime": "^7.15.8",
-    "@babel/preset-env": "^7.15.8",
     "@babel/preset-typescript": "^7.13.0",
-    "@babel/runtime": "^7.14.0",
-    "babel-preset-gatsby-package": "^2.0.0",
     "cross-env": "^7.0.3",
     "gatsby": "^4.0.1",
     "husky": "^7.0.4",
