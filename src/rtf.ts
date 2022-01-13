@@ -34,6 +34,9 @@ export function cleanupElementNode(
       const newChild = cleanupElementNode(child);
       if (newChild) {
         newChildren.push(newChild);
+      } else if (child.type === "table_cell") {
+        // Keep table cells as they are important!
+        newChildren.push({ type: child.type, children: [] });
       }
     }
   });
