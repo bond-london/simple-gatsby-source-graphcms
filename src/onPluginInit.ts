@@ -6,6 +6,7 @@ import {
   GraphQLAbstractType,
   GraphQLInterfaceType,
   GraphQLObjectType,
+  GraphQLField,
 } from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
@@ -94,13 +95,13 @@ function identifyRichTextNodes({ schema }: ISchemaInformation) {
   const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
   const possibleTypes = schema.getPossibleTypes(nodeInterface);
 
-  const richTextMap = new Map<string, string[]>();
+  const richTextMap = new Map<string, GraphQLField<any, any>[]>();
   possibleTypes.forEach((type) => {
-    const fields: string[] = [];
+    const fields: GraphQLField<any, any>[] = [];
     Object.entries(type.getFields()).forEach(([key, value]) => {
       const type = value.type as GraphQLObjectType;
       if (type && type.name?.endsWith("RichText")) {
-        fields.push(key);
+        fields.push(value);
       }
     });
     if (fields.length) {

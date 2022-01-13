@@ -1,5 +1,6 @@
 import { extname, basename } from "path";
 import { NodeInput, SourceNodesArgs } from "gatsby";
+import { GraphQLField } from "graphql";
 import {
   createSourcingContext,
   fetchAllNodes,
@@ -185,7 +186,7 @@ async function processNodesOfType(
   context: ISourcingContext,
   remoteTypeName: string,
   remoteNodes: AsyncIterable<IRemoteNode>,
-  richTextMap: Map<string, string[]>,
+  richTextMap: Map<string, GraphQLField<any, any>[]>,
   usedAssetRemoteIds: Set<string>
 ) {
   for await (const remoteNode of remoteNodes) {
@@ -229,7 +230,7 @@ async function createOrTouchNode(
   context: ISourcingContext,
   remoteTypeName: string,
   remoteNode: IRemoteNode,
-  richTextMap: Map<string, string[]>,
+  richTextMap: Map<string, GraphQLField<any, any>[]>,
   usedAssetRemoteIds: Set<string>
 ) {
   const { typePrefix, markdownFields, buildMarkdownNodes, cleanupRtf } =
@@ -263,16 +264,18 @@ async function createOrTouchNode(
       });
 
       if (richTextFields) {
-        richTextFields.forEach((fieldName) => {
-          const value = existingNode[fieldName];
+        richTextFields.forEach((graphqlField) => {
+          const value = existingNode[graphqlField.name];
           const field = value as RichTextField;
-          addAssetReferences(field, usedAssetRemoteIds);
-          if (buildMarkdownNodes) {
-            const markdownNodeId = field.markdownNode;
-            if (markdownNodeId) {
-              const markdownNode = getNode(markdownNodeId);
-              if (markdownNode) {
-                touchNode(markdownNode);
+          if (field) {
+            addAssetReferences(field, usedAssetRemoteIds);
+            if (buildMarkdownNodes) {
+              const markdownNodeId = field.markdownNode;
+              if (markdownNodeId) {
+                const markdownNode = getNode(markdownNodeId);
+                if (markdownNode) {
+                  touchNode(markdownNode);
+                }
               }
             }
           }
@@ -310,13 +313,12 @@ async function createOrTouchNode(
       createNode(markdownNode);
       node[`${field}MarkdownNode`] = markdownNode.id;
       addedField = true;
-      console.log(markdownNode);
     }
   });
 
   if (richTextFields) {
-    richTextFields.forEach((fieldName) => {
-      const value = node[fieldName];
+    richTextFields.forEach((graphqlField) => {
+      const value = node[graphqlField.name];
       const field = value as RichTextField;
       if (field) {
         addAssetReferences(field, usedAssetRemoteIds);
@@ -330,7 +332,7 @@ async function createOrTouchNode(
           const content = field.markdown;
           if (content) {
             const markdownNode = {
-              id: `${fieldName}MarkdownNode:${id}`,
+              id: `${graphqlField.name}MarkdownNode:${id}`,
               parent: node.id,
               internal: {
                 type: `${typePrefix}MarkdownNode`,

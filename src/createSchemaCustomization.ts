@@ -62,7 +62,7 @@ export async function createSchemaCustomization(
   if (cleanupRtf) {
     richTextMap.forEach((fields, type) => {
       fields.forEach((field) => {
-        createTypes(`type ${typePrefix}${type}${capitalize(field)}RichText {
+        createTypes(`type ${typePrefix}${field.type} {
           cleaned: JSON
         }`);
       });

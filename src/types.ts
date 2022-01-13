@@ -1,6 +1,6 @@
 import { Node } from "gatsby";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
-import { GraphQLSchema } from "graphql";
+import { GraphQLSchema, GraphQLField } from "graphql";
 
 export interface PluginOptions {
   buildMarkdownNodes: boolean;
@@ -25,7 +25,7 @@ export interface ISchemaInformation {
 
 export interface PluginState {
   schemaInformation?: ISchemaInformation;
-  richTextMap?: Map<string, string[]>;
+  richTextMap?: Map<string, GraphQLField<any, any>[]>;
 }
 
 export type GraphCMS_Node = Node & {
