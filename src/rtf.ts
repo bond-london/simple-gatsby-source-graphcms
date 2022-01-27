@@ -1,6 +1,7 @@
 import {
   ElementNode,
   EmbedElement,
+  ImageElement,
   isElement,
   isText,
   Node,
@@ -10,6 +11,10 @@ import {
 
 export function isEmbed(node: Node): node is EmbedElement {
   return isElement(node) && node.type === "embed";
+}
+
+export function isImage(node: Node): node is ImageElement {
+  return isElement(node) && node.type === "image";
 }
 
 function cleanupTextString(text: string) {
@@ -40,11 +45,14 @@ export function cleanupElementNode(
       }
     }
   });
-  if (newChildren.length) {
+  if (newChildren.length || isEmbed(elementNode) || isImage(elementNode)) {
     return { ...rest, children: newChildren };
   }
 
   if (isEmbed(elementNode)) {
+    return { ...rest, children: [] };
+  }
+  if (isImage(elementNode)) {
     return { ...rest, children: [] };
   }
 }
