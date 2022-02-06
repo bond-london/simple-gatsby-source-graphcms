@@ -3,6 +3,14 @@ import { ISchemaInformation, PluginOptions } from "./types";
 import { createSourcingConfig, stateCache } from "./utils";
 import { createSchemaCustomization as createToolkitSchemaCustomization } from "gatsby-graphql-source-toolkit";
 import { capitalize } from "lodash";
+import {
+  GraphQLAbstractType,
+  GraphQLInterfaceType,
+  GraphQLObjectType,
+  GraphQLField,
+  isNonNullType,
+  getNullableType,
+} from "graphql";
 
 function customiseSchema(
   { createTypes }: Actions,
@@ -62,7 +70,12 @@ export async function createSchemaCustomization(
   if (cleanupRtf) {
     richTextMap.forEach((fields, type) => {
       fields.forEach((field) => {
-        createTypes(`type ${typePrefix}${field.type} {
+        const valueType = field.type as GraphQLObjectType;
+        const fieldType = isNonNullType(valueType)
+          ? (valueType.ofType as GraphQLObjectType)
+          : valueType;
+
+        createTypes(`type ${typePrefix}${fieldType} {
           cleaned: JSON
         }`);
       });

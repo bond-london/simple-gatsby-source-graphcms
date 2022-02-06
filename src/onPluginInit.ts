@@ -7,6 +7,8 @@ import {
   GraphQLInterfaceType,
   GraphQLObjectType,
   GraphQLField,
+  isNonNullType,
+  getNullableType,
 } from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
@@ -99,8 +101,13 @@ function identifyRichTextNodes({ schema }: ISchemaInformation) {
   possibleTypes.forEach((type) => {
     const fields: GraphQLField<any, any>[] = [];
     Object.entries(type.getFields()).forEach(([key, value]) => {
-      const type = value.type as GraphQLObjectType;
-      if (type && type.name?.endsWith("RichText")) {
+      const valueType = value.type as GraphQLObjectType;
+      const fieldType = isNonNullType(valueType)
+        ? (valueType.ofType as GraphQLObjectType)
+        : valueType;
+
+      const name = fieldType?.toString();
+      if (name?.endsWith("RichText")) {
         fields.push(value);
       }
     });

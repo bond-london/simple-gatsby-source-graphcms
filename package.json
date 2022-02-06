@@ -32,7 +32,7 @@
     "async-sema": "^3.1.1",
     "gatsby-graphql-source-toolkit": "^2.0.1",
     "gatsby-plugin-image": "^2.0.0",
-    "gatsby-plugin-utils": "^2.0.0",
+    "gatsby-plugin-utils": "^3.0.0",
     "gatsby-source-filesystem": "^4.0.0",
     "node-fetch": "2"
   },
