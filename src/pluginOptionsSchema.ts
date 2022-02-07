@@ -68,5 +68,8 @@ export function pluginOptionsSchema(
       .min(1)
       .default(50)
       .description("The number of promises to run at one time"),
+    dontDownload: Joi.boolean()
+      .default(false)
+      .description("Don't download anything - used for testing only"),
   });
 }

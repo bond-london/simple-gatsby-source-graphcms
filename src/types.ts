@@ -16,6 +16,7 @@ export interface PluginOptions {
   concurrentDownloads: number;
   markdownFields: { [key: string]: string[] };
   cleanupRtf: boolean;
+  dontDownload: boolean;
 }
 
 export interface ISchemaInformation {

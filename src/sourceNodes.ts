@@ -87,7 +87,7 @@ async function processDownloadableAssets(
   remoteNodes: AsyncIterable<IRemoteNode>,
   usedAssetRemoteIds: Set<string>
 ) {
-  const { concurrentDownloads, skipUnusedAssets } = pluginOptions;
+  const { concurrentDownloads, skipUnusedAssets, dontDownload } = pluginOptions;
   const allRemoteNodes: IRemoteNode[] = [];
 
   for await (const remoteNode of remoteNodes) {
@@ -103,7 +103,8 @@ async function processDownloadableAssets(
           context,
           skipUnusedAssets,
           remoteNode,
-          usedAssetRemoteIds
+          usedAssetRemoteIds,
+          dontDownload
         );
       } finally {
         s.release();
@@ -116,7 +117,8 @@ async function createOrTouchAsset(
   context: ISourcingContext,
   skipUnusedAssets: boolean,
   remoteNode: IRemoteNode,
-  usedAssetRemoteIds: Set<string>
+  usedAssetRemoteIds: Set<string>,
+  dontDownload: boolean
 ) {
   const { gatsbyApi } = context;
   const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
@@ -164,7 +166,8 @@ async function createOrTouchAsset(
 
   const asset = remoteNode as IGraphCmsAsset;
   const shouldDownload =
-    !skipUnusedAssets || isAssetUsed(asset, usedAssetRemoteIds);
+    !dontDownload &&
+    (!skipUnusedAssets || isAssetUsed(asset, usedAssetRemoteIds));
   if (shouldDownload) {
     try {
       const localFileId = await downloadAsset(context, asset, reason);
