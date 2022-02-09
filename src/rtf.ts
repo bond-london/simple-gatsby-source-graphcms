@@ -25,6 +25,11 @@ function isEmptyText(text: string): boolean {
   return text.trim().length === 0;
 }
 
+const keepEmpty: { [name: string]: boolean } = {
+  table_header_cell: true,
+  table_cell: true,
+};
+
 export function cleanupElementNode(
   elementNode: ElementNode
 ): ElementNode | undefined {
@@ -39,7 +44,7 @@ export function cleanupElementNode(
       const newChild = cleanupElementNode(child);
       if (newChild) {
         newChildren.push(newChild);
-      } else if (child.type === "table_cell") {
+      } else if (keepEmpty[child.type]) {
         // Keep table cells as they are important!
         newChildren.push({ type: child.type, children: [] });
       }
