@@ -64,7 +64,7 @@ export function cleanupElementNode(
 
 export function cleanupRTFContent(
   content: RichTextContent
-): Array<ElementNode> {
+): Array<ElementNode> | undefined {
   const elements = Array.isArray(content) ? content : content.children;
   const newElements: ElementNode[] = [];
   elements.forEach((element) => {
@@ -74,5 +74,7 @@ export function cleanupRTFContent(
     }
   });
 
-  return newElements;
+  if (newElements.length) {
+    return newElements;
+  }
 }
