@@ -10,21 +10,13 @@ import {
   IRemoteNode,
   ISourcingContext,
 } from "gatsby-graphql-source-toolkit/dist/types";
-import { PluginOptions } from "./types";
+import { IGraphCmsAsset, PluginOptions } from "./types";
 import { createSourcingConfig, stateCache } from "./utils";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
 import { Sema } from "async-sema";
 import { ElementNode, RichTextContent } from "@graphcms/rich-text-types";
 import { cleanupRTFContent } from "./rtf";
-
-interface IGraphCmsAsset extends IRemoteNode {
-  mimeType: string;
-  url: string;
-  fileName: string;
-  height?: number;
-  width?: number;
-  size: number;
-}
+import { createLocalFileNode } from "./cacheGraphCmsAsset";
 
 function isAssetUsed(node: IGraphCmsAsset, usedAssetRemoteIds: Set<string>) {
   const fields = Object.entries(node);
@@ -101,10 +93,9 @@ async function processDownloadableAssets(
       try {
         await createOrTouchAsset(
           context,
-          skipUnusedAssets,
+          pluginOptions,
           remoteNode,
-          usedAssetRemoteIds,
-          dontDownload
+          usedAssetRemoteIds
         );
       } finally {
         s.release();
@@ -115,11 +106,11 @@ async function processDownloadableAssets(
 
 async function createOrTouchAsset(
   context: ISourcingContext,
-  skipUnusedAssets: boolean,
+  pluginOptions: PluginOptions,
   remoteNode: IRemoteNode,
-  usedAssetRemoteIds: Set<string>,
-  dontDownload: boolean
+  usedAssetRemoteIds: Set<string>
 ) {
+  const { skipUnusedAssets, dontDownload, localCache } = pluginOptions;
   const { gatsbyApi } = context;
   const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
   const { touchNode, createNode } = actions;
@@ -170,10 +161,12 @@ async function createOrTouchAsset(
     (!skipUnusedAssets || isAssetUsed(asset, usedAssetRemoteIds));
   if (shouldDownload) {
     try {
-      const localFileId = await downloadAsset(context, asset, reason);
+      const localFileId = await (localCache
+        ? createLocalFileNode(context, asset, reason, pluginOptions)
+        : downloadAsset(context, asset, reason));
       node.localFile = localFileId;
     } catch (error) {
-      reporter.warn(
+      reporter.panic(
         `Failed to process asset ${asset.url} (${asset.fileName}): ${
           (error as Error).message || ""
         }`

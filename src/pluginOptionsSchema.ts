@@ -71,5 +71,13 @@ export function pluginOptionsSchema(
     dontDownload: Joi.boolean()
       .default(false)
       .description("Don't download anything - used for testing only"),
+    localCache: Joi.boolean()
+      .default(false)
+      .description(
+        "Use a local cache for downloaded assets rather than always downloading"
+      ),
+    localCacheDir: Joi.string()
+      .default(".bondgraphcmsassets")
+      .description("Local cache folder to use"),
   });
 }

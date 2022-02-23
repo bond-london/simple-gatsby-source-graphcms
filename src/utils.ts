@@ -14,6 +14,7 @@ import {
 } from "gatsby-graphql-source-toolkit/dist/types";
 import { GraphQLField, ExecutionResult } from "graphql";
 import { ISchemaInformation, PluginOptions, PluginState } from "./types";
+import { copyFile, rename, rm } from "fs-extra";
 
 export const stateCache: PluginState = {};
 
@@ -168,4 +169,52 @@ export async function createSourcingConfig(
     gatsbyTypePrefix: typePrefix,
     gatsbyNodeDefs: buildNodeDefinitions({ gatsbyNodeTypes, documents }),
   };
+}
+
+async function timeout(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+export async function retry<A>(
+  fn: () => Promise<A>,
+  options: {
+    retries: number;
+    factor: number;
+    minTimeout: number;
+    onRetry: (error: Error | string) => void;
+  }
+): Promise<A | undefined> {
+  let ms = options.minTimeout;
+  for (let i = 0; i < options.retries; i++) {
+    try {
+      const result = await fn();
+      return result;
+    } catch (error) {
+      if (i < options.retries - 1) {
+        if (typeof error === "string" || error instanceof Error) {
+          options.onRetry(error);
+        } else {
+          options.onRetry("" + error);
+        }
+      }
+      await timeout(ms);
+      ms += ms * options.factor;
+    }
+  }
+}
+
+export async function atomicCopyFile(
+  sourcePath: string,
+  targetPath: string
+): Promise<void> {
+  const tempFile = targetPath + ".tmp";
+  await rm(targetPath, { force: true });
+  try {
+    await copyFile(sourcePath, tempFile);
+    await rename(tempFile, targetPath);
+  } finally {
+    await rm(tempFile, { force: true });
+  }
 }
