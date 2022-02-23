@@ -29,12 +29,8 @@
   "license": "MIT",
   "dependencies": {
     "@graphcms/rich-text-types": "^0.3.1",
-    "@types/cache-manager": "^3.4.2",
-    "@types/cache-manager-fs-hash": "^0.0.1",
     "@types/fs-extra": "^9.0.13",
     "async-sema": "^3.1.1",
-    "cache-manager": "^3.6.0",
-    "cache-manager-fs-hash": "^1.0.0",
     "fs-extra": "^10.0.1",
     "gatsby-graphql-source-toolkit": "^2.0.1",
     "gatsby-plugin-image": "^2.0.0",
