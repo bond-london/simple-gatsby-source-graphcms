@@ -72,7 +72,7 @@ export function pluginOptionsSchema(
       .default(false)
       .description("Don't download anything - used for testing only"),
     localCache: Joi.boolean()
-      .default(false)
+      .default(true)
       .description(
         "Use a local cache for downloaded assets rather than always downloading"
       ),
