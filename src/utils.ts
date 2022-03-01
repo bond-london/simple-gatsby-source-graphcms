@@ -12,9 +12,15 @@ import {
   IQueryExecutor,
   ISourcingConfig,
 } from "gatsby-graphql-source-toolkit/dist/types";
-import { GraphQLField, ExecutionResult } from "graphql";
 import { ISchemaInformation, PluginOptions, PluginState } from "./types";
 import { copyFile, rename, rm } from "fs-extra";
+import {
+  GraphQLObjectType,
+  GraphQLField,
+  ExecutionResult,
+  isNonNullType,
+  isListType,
+} from "graphql";
 
 export const stateCache: PluginState = {};
 
@@ -217,4 +223,24 @@ export async function atomicCopyFile(
   } finally {
     await rm(tempFile, { force: true });
   }
+}
+
+export function getRealType(valueType: GraphQLObjectType): GraphQLObjectType {
+  if (isListType(valueType)) {
+    return getRealType(valueType.ofType);
+  }
+  if (isNonNullType(valueType)) {
+    return getRealType(valueType.ofType);
+  }
+  return valueType;
+}
+
+export function couldBeAList(valueType: GraphQLObjectType): boolean {
+  if (isListType(valueType)) {
+    return true;
+  }
+  if (isNonNullType(valueType)) {
+    return couldBeAList(valueType.ofType);
+  }
+  return false;
 }

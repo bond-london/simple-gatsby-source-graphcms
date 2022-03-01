@@ -1,14 +1,14 @@
 import { NodePluginArgs, ParentSpanPluginArgs } from "gatsby";
 import { loadSchema } from "gatsby-graphql-source-toolkit";
 import { ISchemaInformation, PluginOptions } from "./types";
-import { createExecutor, stateCache } from "./utils";
+import { createExecutor, getRealType, stateCache } from "./utils";
 import {
   GraphQLAbstractType,
   GraphQLInterfaceType,
   GraphQLObjectType,
   GraphQLField,
   isNonNullType,
-  getNullableType,
+  isListType,
 } from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
@@ -102,9 +102,7 @@ function identifyRichTextNodes({ schema }: ISchemaInformation) {
     const fields: GraphQLField<any, any>[] = [];
     Object.entries(type.getFields()).forEach(([key, value]) => {
       const valueType = value.type as GraphQLObjectType;
-      const fieldType = isNonNullType(valueType)
-        ? (valueType.ofType as GraphQLObjectType)
-        : valueType;
+      const fieldType = getRealType(valueType);
 
       const name = fieldType?.toString();
       if (name?.endsWith("RichText")) {

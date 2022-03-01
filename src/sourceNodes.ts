@@ -1,6 +1,6 @@
 import { extname, basename } from "path";
 import { NodeInput, SourceNodesArgs } from "gatsby";
-import { GraphQLField } from "graphql";
+import { GraphQLField, GraphQLObjectType } from "graphql";
 import {
   createSourcingContext,
   fetchAllNodes,
@@ -11,7 +11,7 @@ import {
   ISourcingContext,
 } from "gatsby-graphql-source-toolkit/dist/types";
 import { IGraphCmsAsset, PluginOptions } from "./types";
-import { createSourcingConfig, stateCache } from "./utils";
+import { couldBeAList, createSourcingConfig, stateCache } from "./utils";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
 import { Sema } from "async-sema";
 import { ElementNode, RichTextContent } from "@graphcms/rich-text-types";
@@ -185,8 +185,13 @@ async function processNodesOfType(
   richTextMap: Map<string, GraphQLField<any, any>[]>,
   usedAssetRemoteIds: Set<string>
 ) {
+  const typeName = context.typeNameTransform.toGatsbyTypeName(remoteTypeName);
+  const existing = context.gatsbyApi.getNodesByType(typeName);
+  const existingSet = new Set(existing.map((e) => e.id));
+  let existingNodes = 0;
+  let newNodes = 0;
   for await (const remoteNode of remoteNodes) {
-    await createOrTouchNode(
+    const newId = await createOrTouchNode(
       pluginOptions,
       context,
       remoteTypeName,
@@ -194,7 +199,27 @@ async function processNodesOfType(
       richTextMap,
       usedAssetRemoteIds
     );
+
+    if (existingSet.delete(newId)) {
+      existingNodes++;
+    } else {
+      newNodes++;
+    }
   }
+  let oldNodes = existingSet.size;
+  let deletedNodes = 0;
+  if (oldNodes) {
+    existingSet.forEach((id) => {
+      const oldNode = existing.find((n) => n.id === id);
+      if (oldNode) {
+        context.gatsbyApi.actions.deleteNode(oldNode);
+        deletedNodes++;
+      }
+    });
+  }
+  context.gatsbyApi.reporter.info(
+    `Processed ${newNodes} new, ${existingNodes} existing and ${oldNodes} old nodes for ${remoteTypeName}. Deleted ${deletedNodes}.`
+  );
 }
 
 interface RichTextField {
@@ -262,17 +287,23 @@ async function createOrTouchNode(
       if (richTextFields) {
         richTextFields.forEach((graphqlField) => {
           const value = existingNode[graphqlField.name];
-          const field = value as RichTextField;
-          if (field) {
-            addAssetReferences(field, usedAssetRemoteIds);
-            if (buildMarkdownNodes) {
-              const markdownNodeId = field.markdownNode;
-              if (markdownNodeId) {
-                const markdownNode = getNode(markdownNodeId);
-                if (markdownNode) {
-                  touchNode(markdownNode);
+          if (value) {
+            const processField = (field: RichTextField) => {
+              addAssetReferences(field, usedAssetRemoteIds);
+              if (buildMarkdownNodes) {
+                const markdownNodeId = field.markdownNode;
+                if (markdownNodeId) {
+                  const markdownNode = getNode(markdownNodeId);
+                  if (markdownNode) {
+                    touchNode(markdownNode);
+                  }
                 }
               }
+            };
+            if (Array.isArray(value)) {
+              value.forEach((field) => processField(field as RichTextField));
+            } else {
+              processField(value as RichTextField);
             }
           }
         });
@@ -315,32 +346,38 @@ async function createOrTouchNode(
   if (richTextFields) {
     richTextFields.forEach((graphqlField) => {
       const value = node[graphqlField.name];
-      const field = value as RichTextField;
-      if (field) {
-        addAssetReferences(field, usedAssetRemoteIds);
-        if (cleanupRtf) {
-          const raw = field.raw || field.json;
-          if (raw) {
-            field.cleaned = cleanupRTFContent(raw);
+      if (value) {
+        const processField = (field: RichTextField) => {
+          addAssetReferences(field, usedAssetRemoteIds);
+          if (cleanupRtf) {
+            const raw = field.raw || field.json;
+            if (raw) {
+              field.cleaned = cleanupRTFContent(raw);
+            }
           }
-        }
-        if (buildMarkdownNodes) {
-          const content = field.markdown;
-          if (content) {
-            const markdownNode = {
-              id: `${graphqlField.name}MarkdownNode:${id}`,
-              parent: node.id,
-              internal: {
-                type: `${typePrefix}MarkdownNode`,
-                mediaType: "text/markdown",
-                content,
-                contentDigest: createContentDigest(content),
-              },
-            };
-            createNode(markdownNode);
-            field.markdownNode = markdownNode.id;
-            addedField = true;
+          if (buildMarkdownNodes) {
+            const content = field.markdown;
+            if (content) {
+              const markdownNode = {
+                id: `${graphqlField.name}MarkdownNode:${id}`,
+                parent: node.id,
+                internal: {
+                  type: `${typePrefix}MarkdownNode`,
+                  mediaType: "text/markdown",
+                  content,
+                  contentDigest: createContentDigest(content),
+                },
+              };
+              createNode(markdownNode);
+              field.markdownNode = markdownNode.id;
+              addedField = true;
+            }
           }
+        };
+        if (Array.isArray(value)) {
+          value.forEach((field) => processField(field as RichTextField));
+        } else {
+          processField(value as RichTextField);
         }
       }
     });
@@ -352,6 +389,22 @@ async function createOrTouchNode(
     console.log(node);
   }
   return id;
+}
+
+function processField(
+  pluginOptions: PluginOptions,
+  context: ISourcingContext,
+  graphqlField: GraphQLField<any, any>,
+  field: RichTextField,
+  usedAssetRemoteIds: Set<string>,
+  id: string,
+  node: NodeInput
+) {
+  const { gatsbyApi } = context;
+  const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
+  const { touchNode, createNode } = actions;
+  let addedField = false;
+  return addedField;
 }
 
 export async function sourceNodes(
