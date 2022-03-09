@@ -88,7 +88,7 @@ export function createExecutor(
   const { endpoint, fragmentsPath, locales, stages, token, typePrefix } =
     pluginOptions;
   const { reporter } = gatsbyApi;
-  const defaultStage = stages?.length === 1 && stages[0];
+  const defaultStage = stages[0];
   const execute = (args: IQueryExecutionArgs) => {
     const { operationName, query, variables = {} } = args;
     return fetch(endpoint, {
@@ -141,7 +141,7 @@ export async function createSourcingConfig(
 ): Promise<ISourcingConfig> {
   const { fragmentsPath, stages, typePrefix, concurrency } = pluginOptions;
   const { reporter } = gatsbyApi;
-  const defaultStage = stages && stages.length === 1 && stages[0];
+  const defaultStage = stages[0];
 
   const execute = createExecutor(gatsbyApi, pluginOptions);
   const { schema, gatsbyNodeTypes } = schemaConfig;

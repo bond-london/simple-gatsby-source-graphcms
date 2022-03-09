@@ -217,7 +217,7 @@ async function processNodesOfType(
       }
     });
   }
-  context.gatsbyApi.reporter.info(
+  context.gatsbyApi.reporter.verbose(
     `Processed ${newNodes} new, ${existingNodes} existing and ${oldNodes} old nodes for ${remoteTypeName}. Deleted ${deletedNodes}.`
   );
 }

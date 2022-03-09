@@ -120,6 +120,15 @@ async function initializeGlobalState(
   args: ParentSpanPluginArgs,
   options: PluginOptions
 ) {
+  const { reporter } = args;
+  const { stages } = options;
+  const defaultStage = stages[0];
+  if (defaultStage) {
+    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+  } else {
+    reporter.panic(`no default stage for GraphCMS`);
+  }
+
   const schemaInformation = await retrieveSchema(args, options);
   stateCache.schemaInformation = schemaInformation;
   stateCache.richTextMap = identifyRichTextNodes(schemaInformation);

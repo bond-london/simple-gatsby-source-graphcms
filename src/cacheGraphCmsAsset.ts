@@ -48,7 +48,7 @@ async function internalCreateLocalFileNode(
       buffer,
       ...createFileNodeRequirements,
     });
-    reporter.info(`Using cached asset ${fileName} from ${url} (${reason})`);
+    reporter.verbose(`Using cached asset ${fileName} from ${url} (${reason})`);
     return fileNode.id;
   } catch {
     // ignore this - just download!
@@ -107,7 +107,7 @@ export async function createLocalFileNode(
   const url = remoteAsset.url;
   const current = promiseCache.get(url);
   if (current) {
-    reporter.info(`Using cached request for ${url}`);
+    reporter.verbose(`Using cached request for ${url}`);
     return current;
   }
 

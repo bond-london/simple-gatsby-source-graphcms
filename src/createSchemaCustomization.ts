@@ -37,17 +37,10 @@ export async function createSchemaCustomization(
     markdownFields,
     downloadAllAssets,
     typePrefix,
-    stages,
     cleanupRtf,
   } = pluginOptions;
   const { actions, schema, reporter } = gatsbyApi;
   const { createTypes } = actions;
-  const defaultStage = stages?.length === 1 && stages[0];
-  if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
-  } else {
-    reporter.info(`no default stage for GraphCMS`);
-  }
 
   const schemaConfig = stateCache.schemaInformation;
   if (!schemaConfig) {
