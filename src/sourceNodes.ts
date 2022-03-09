@@ -312,8 +312,6 @@ async function createOrTouchNode(
     }
   }
 
-  let addedField = false;
-
   const node: NodeInput = {
     ...remoteNode,
     id,
@@ -339,7 +337,6 @@ async function createOrTouchNode(
       };
       createNode(markdownNode);
       node[`${field}MarkdownNode`] = markdownNode.id;
-      addedField = true;
     }
   });
 
@@ -370,7 +367,6 @@ async function createOrTouchNode(
               };
               createNode(markdownNode);
               field.markdownNode = markdownNode.id;
-              addedField = true;
             }
           }
         };
@@ -385,26 +381,7 @@ async function createOrTouchNode(
 
   createNode(node);
 
-  if (addedField) {
-    console.log(node);
-  }
   return id;
-}
-
-function processField(
-  pluginOptions: PluginOptions,
-  context: ISourcingContext,
-  graphqlField: GraphQLField<any, any>,
-  field: RichTextField,
-  usedAssetRemoteIds: Set<string>,
-  id: string,
-  node: NodeInput
-) {
-  const { gatsbyApi } = context;
-  const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
-  const { touchNode, createNode } = actions;
-  let addedField = false;
-  return addedField;
 }
 
 export async function sourceNodes(
