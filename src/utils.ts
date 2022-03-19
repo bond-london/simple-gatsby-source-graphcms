@@ -102,10 +102,12 @@ export function createExecutor(
     })
       .then((response) => {
         if (!response.ok) {
-          return reporter.panic(
-            `gatsby-source-graphcms: Problem building GraphCMS nodes`,
-            new Error(response.statusText)
-          );
+          response.text().then((t) => {
+            return reporter.panic(
+              `gatsby-source-graphcms: Problem building GraphCMS nodes: "${query}"`,
+              new Error(response.statusText)
+            );
+          });
         }
 
         return response.json();
@@ -113,7 +115,9 @@ export function createExecutor(
       .then((response) => {
         if (response.errors) {
           return reporter.panic(
-            `gatsby-source-graphcms: Problem building GraphCMS nodes`,
+            `gatsby-source-graphcms: Errors building GraphCMS nodes: "${query}" (${JSON.stringify(
+              response.errors
+            )})`,
             new Error(response.errors)
           );
         }
@@ -126,7 +130,7 @@ export function createExecutor(
       })
       .catch((error) => {
         return reporter.panic(
-          `gatsby-source-graphcms: Problem building GraphCMS nodes`,
+          `gatsby-source-graphcms: Error building GraphCMS nodes: "${query}"`,
           new Error(error)
         );
       });
