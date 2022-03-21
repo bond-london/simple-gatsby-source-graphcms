@@ -15,15 +15,21 @@ import {
 function customiseSchema(
   { createTypes }: Actions,
   { typePrefix }: PluginOptions,
-  { gatsbyNodeTypes }: ISchemaInformation
+  { gatsbyNodeTypes, schema }: ISchemaInformation
 ) {
   gatsbyNodeTypes.forEach((gatsbyNodeType) => {
-    createTypes(`type ${typePrefix}${gatsbyNodeType.remoteTypeName} implements Node {
+    const realType = schema.getType(
+      gatsbyNodeType.remoteTypeName
+    ) as GraphQLObjectType;
+    const hasLocaleField = realType.getFields().locale;
+    createTypes(`type ${typePrefix}${
+      gatsbyNodeType.remoteTypeName
+    } implements Node {
         updatedAt: Date! @dateformat
         createdAt: Date! @dateformat
         publishedAt: Date @dateformat
-        actualLocale: String
-        actualStage: String!
+        ${hasLocaleField ? `actualLocale: ${typePrefix}Locale!` : ""}
+        actualStage: ${typePrefix}Stage!
       }`);
   });
 }
