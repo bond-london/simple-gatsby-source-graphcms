@@ -18,7 +18,10 @@ export function isImage(node: Node): node is ImageElement {
 }
 
 function cleanupTextString(text: string) {
-  return text.replace(/\s+/g, " ");
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/&nbsp;/g, "\u00a0")
+    .replace(/-/g, "\u2011");
 }
 
 function isEmptyText(text: string): boolean {
@@ -37,8 +40,9 @@ export function cleanupElementNode(
   const newChildren: (ElementNode | Text)[] = [];
   children.forEach((child) => {
     if (isText(child)) {
-      if (!isEmptyText(child.text)) {
-        newChildren.push({ ...child, text: cleanupTextString(child.text) });
+      const cleaned = cleanupTextString(child.text);
+      if (!isEmptyText(cleaned)) {
+        newChildren.push({ ...child, text: cleaned });
       }
     } else if (isElement(child)) {
       const newChild = cleanupElementNode(child);
