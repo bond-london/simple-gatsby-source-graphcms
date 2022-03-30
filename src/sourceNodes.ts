@@ -191,7 +191,7 @@ async function processNodesOfType(
   let existingNodes = 0;
   let newNodes = 0;
   for await (const remoteNode of remoteNodes) {
-    const newId = await createOrTouchNode(
+    const newId = createOrTouchNode(
       pluginOptions,
       context,
       remoteTypeName,
@@ -246,7 +246,7 @@ function addAssetReferences(
   }
 }
 
-async function createOrTouchNode(
+function createOrTouchNode(
   pluginOptions: PluginOptions,
   context: ISourcingContext,
   remoteTypeName: string,
@@ -407,8 +407,8 @@ export async function sourceNodes(
   const usedAssetRemoteIds = new Set<string>();
 
   for (const remoteTypeName of context.gatsbyNodeDefs.keys()) {
-    const remoteNodes = fetchAllNodes(context, remoteTypeName);
     if (remoteTypeName !== "Asset") {
+      const remoteNodes = fetchAllNodes(context, remoteTypeName);
       const promise = processNodesOfType(
         pluginOptions,
         context,
@@ -420,6 +420,7 @@ export async function sourceNodes(
       promises.push(promise);
     }
   }
+  await Promise.all(promises);
 
   const remoteAssets = fetchAllNodes(context, "Asset");
   await processDownloadableAssets(
@@ -428,5 +429,4 @@ export async function sourceNodes(
     remoteAssets,
     usedAssetRemoteIds
   );
-  await Promise.all(promises);
 }
