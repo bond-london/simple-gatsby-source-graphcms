@@ -1,16 +1,16 @@
 import { Actions, CreateSchemaCustomizationArgs } from "gatsby";
-import { ISchemaInformation, PluginOptions } from "./types";
+import {
+  ISchemaInformation,
+  isSpecialField,
+  isSpecialObject,
+  isSpecialUnion,
+  PluginOptions,
+  SpecialFieldEntry,
+  SpecialFieldMap,
+} from "./types";
 import { createSourcingConfig, getRealType, stateCache } from "./utils";
 import { createSchemaCustomization as createToolkitSchemaCustomization } from "gatsby-graphql-source-toolkit";
-import { capitalize } from "lodash";
-import {
-  GraphQLAbstractType,
-  GraphQLInterfaceType,
-  GraphQLObjectType,
-  GraphQLField,
-  isNonNullType,
-  getNullableType,
-} from "graphql";
+import { GraphQLObjectType } from "graphql";
 
 function customiseSchema(
   { createTypes }: Actions,
@@ -34,6 +34,78 @@ function customiseSchema(
   });
 }
 
+function walkSpecialFieldsEntries(
+  gatsbyApi: CreateSchemaCustomizationArgs,
+  pluginOptions: PluginOptions,
+  isTopLevel: boolean,
+  typeName: string,
+  specialsFieldsEntries: ReadonlyArray<SpecialFieldEntry>
+) {
+  const { buildMarkdownNodes, cleanupRtf, typePrefix } = pluginOptions;
+  const {
+    actions: { createTypes },
+    reporter,
+  } = gatsbyApi;
+  const additions: string[] = [];
+  specialsFieldsEntries.forEach((entry) => {
+    if (isSpecialField(entry)) {
+      switch (entry.type) {
+        case "Markdown":
+          additions.push(`${entry.field.name}MarkdownNode: ${typePrefix}MarkdownNode @link
+          `);
+          break;
+        case "RichText":
+          {
+            const valueType = entry.field.type as GraphQLObjectType;
+            const fieldType = getRealType(valueType);
+            createTypes(`type ${typePrefix}${fieldType} {
+            cleaned: JSON
+          }`);
+          }
+          break;
+      }
+    } else if (isSpecialUnion(entry)) {
+      walkSpecialFieldsMap(gatsbyApi, pluginOptions, false, entry.value);
+    } else if (isSpecialObject(entry)) {
+      walkSpecialFieldsEntries(
+        gatsbyApi,
+        pluginOptions,
+        false,
+        typeName,
+        entry.value
+      );
+    }
+  });
+  if (additions.length > 0) {
+    createTypes(`type ${typePrefix}${typeName} ${
+      isTopLevel ? "implements Node" : ""
+    } {
+      ${additions}
+    }`);
+  }
+}
+function walkSpecialFieldsMap(
+  gatsbyApi: CreateSchemaCustomizationArgs,
+  pluginOptions: PluginOptions,
+  isTopLevel: boolean,
+  specialsFieldsMap: SpecialFieldMap
+) {
+  const { buildMarkdownNodes, cleanupRtf, typePrefix } = pluginOptions;
+  const {
+    actions: { createTypes },
+    reporter,
+  } = gatsbyApi;
+  specialsFieldsMap.forEach((fields, typeName) => {
+    walkSpecialFieldsEntries(
+      gatsbyApi,
+      pluginOptions,
+      isTopLevel,
+      typeName,
+      fields
+    );
+  });
+}
+
 export async function createSchemaCustomization(
   gatsbyApi: CreateSchemaCustomizationArgs,
   pluginOptions: PluginOptions
@@ -53,9 +125,9 @@ export async function createSchemaCustomization(
     return reporter.panic("No schema configuration");
   }
 
-  const richTextMap = stateCache.richTextMap;
-  if (!richTextMap) {
-    return reporter.panic("No rich text map");
+  const specialFields = stateCache.specialFields;
+  if (!specialFields) {
+    return reporter.panic("No special fields");
   }
 
   const config = await createSourcingConfig(
@@ -66,46 +138,23 @@ export async function createSchemaCustomization(
   customiseSchema(actions, pluginOptions, schemaConfig);
   await createToolkitSchemaCustomization(config);
 
-  if (cleanupRtf) {
-    richTextMap.forEach((fields, type) => {
-      fields.forEach((field) => {
-        const valueType = field.type as GraphQLObjectType;
-        const fieldType = getRealType(valueType);
-
-        createTypes(`type ${typePrefix}${fieldType} {
-          cleaned: JSON
-        }`);
-      });
-    });
-  }
-
   if (downloadAllAssets) {
     createTypes(`type ${typePrefix}Asset implements Node {
     localFile: File @link
   }`);
   }
 
-  if (buildMarkdownNodes || markdownFields) {
+  if (buildMarkdownNodes) {
     createTypes(`
         type ${typePrefix}MarkdownNode implements Node {
           id: ID!
         }
       `);
 
-    if (buildMarkdownNodes) {
-      createTypes(`type ${typePrefix}RichText {
+    createTypes(`type ${typePrefix}RichText {
         markdownNode: ${typePrefix}MarkdownNode @link
       }`);
-    }
-
-    Object.keys(markdownFields).forEach((type) => {
-      const fields = markdownFields[type];
-      createTypes(`type ${typePrefix}${type} implements Node {
-        ${fields.map(
-          (field) => `${field}MarkdownNode: ${typePrefix}MarkdownNode @link
-        `
-        )}
-      }`);
-    });
   }
+
+  walkSpecialFieldsMap(gatsbyApi, pluginOptions, true, specialFields);
 }

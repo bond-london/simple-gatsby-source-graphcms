@@ -31,12 +31,12 @@ export interface ISchemaInformation {
 
 export interface PluginState {
   schemaInformation?: ISchemaInformation;
-  richTextMap?: Map<string, GraphQLField<any, any>[]>;
+  specialFields?: SpecialFieldMap;
 }
 
 export type GraphCMS_Node = Node & {
   remoteTypeName?: string;
-  remoteId?: string;
+  remoteId: string;
   stage: string;
   locale: string;
 };
@@ -65,4 +65,48 @@ export interface IGraphCmsAsset extends IRemoteNode {
   height?: number;
   width?: number;
   size: number;
+}
+
+export type BasicFieldType = { [key: string]: unknown };
+
+export type SpecialFieldType = {
+  type: "Asset" | "RichText" | "Markdown";
+  fieldName: string;
+  field: GraphQLField<any, any>;
+};
+
+export type SpecialFieldUnion = {
+  type: "Union";
+  fieldName: string;
+  value: SpecialFieldMap;
+};
+
+export type SpecialFieldObject = {
+  type: "Object";
+  fieldName: string;
+  value: SpecialFieldEntry[];
+};
+
+export type SpecialFieldEntry =
+  | SpecialFieldUnion
+  | SpecialFieldType
+  | SpecialFieldObject;
+export type SpecialFieldMap = Map<string, SpecialFieldEntry[]>;
+
+export function isSpecialField(
+  type: SpecialFieldEntry
+): type is SpecialFieldType {
+  return typeof (type as SpecialFieldType).field !== "undefined";
+}
+
+export function isSpecialUnion(
+  type: SpecialFieldEntry
+): type is SpecialFieldUnion {
+  return type.type === "Union";
+}
+
+export function isSpecialObject(
+  type: SpecialFieldEntry
+): type is SpecialFieldObject {
+  return type.type === "Object";
 }

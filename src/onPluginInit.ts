@@ -1,14 +1,20 @@
-import { NodePluginArgs, ParentSpanPluginArgs } from "gatsby";
+import { NodePluginArgs, ParentSpanPluginArgs, Reporter } from "gatsby";
 import { loadSchema } from "gatsby-graphql-source-toolkit";
-import { ISchemaInformation, PluginOptions } from "./types";
+import {
+  ISchemaInformation,
+  PluginOptions,
+  SpecialFieldEntry,
+  SpecialFieldMap,
+} from "./types";
 import { createExecutor, getRealType, stateCache } from "./utils";
 import {
   GraphQLAbstractType,
   GraphQLInterfaceType,
   GraphQLObjectType,
-  GraphQLField,
-  isNonNullType,
-  isListType,
+  isScalarType,
+  isEnumType,
+  isUnionType,
+  isObjectType,
 } from "graphql";
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
@@ -93,27 +99,156 @@ function calculatePluginInit() {
   return "unsupported";
 }
 
-function identifyRichTextNodes({ schema }: ISchemaInformation) {
-  const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
-  const possibleTypes = schema.getPossibleTypes(nodeInterface);
+function isRichTextField(type: GraphQLObjectType) {
+  const name = type?.toString();
+  return name?.endsWith("RichText");
+}
 
-  const richTextMap = new Map<string, GraphQLField<any, any>[]>();
-  possibleTypes.forEach((type) => {
-    const fields: GraphQLField<any, any>[] = [];
-    Object.entries(type.getFields()).forEach(([key, value]) => {
-      const valueType = value.type as GraphQLObjectType;
-      const fieldType = getRealType(valueType);
+function isAssetField(type: GraphQLObjectType) {
+  const name = type?.toString();
+  return name === "Asset";
+}
 
-      const name = fieldType?.toString();
-      if (name?.endsWith("RichText")) {
-        fields.push(value);
+function isMarkdownField(
+  fieldName: string | undefined,
+  markdownFields: string[] | undefined
+) {
+  if (markdownFields && fieldName) {
+    return markdownFields.includes(fieldName);
+  }
+  return false;
+}
+
+function walkType(
+  type: GraphQLObjectType,
+  markdownFieldsMap: { [key: string]: string[] },
+  knownTypes: Set<string>,
+  reporter: Reporter,
+  isTopLevel: boolean,
+  topLevelTypeName: string
+): SpecialFieldEntry[] | undefined {
+  const specialFields: SpecialFieldEntry[] = [];
+
+  reporter.info(
+    `Looking at ${isTopLevel ? "top level" : "sub"} type: ${
+      type.name
+    } (${topLevelTypeName})`
+  );
+  const typeMarkdownFields = markdownFieldsMap[type.name];
+  Object.entries(type.getFields()).forEach(([fieldName, field]) => {
+    const valueType = field.type as GraphQLObjectType;
+    const fieldType = getRealType(valueType);
+    const isScalar = isScalarType(fieldType);
+    const isEnum = isEnumType(fieldType);
+
+    const fieldTypeName = fieldType?.toString();
+    const isKnown = knownTypes.has(fieldTypeName);
+    if (isRichTextField(fieldType)) {
+      specialFields.push({ fieldName, type: "RichText", field });
+    } else if (isAssetField(fieldType)) {
+      specialFields.push({ fieldName, type: "Asset", field });
+    } else if (isMarkdownField(fieldName, typeMarkdownFields)) {
+      specialFields.push({ fieldName, type: "Markdown", field });
+    } else if (!isKnown && isUnionType(fieldType)) {
+      reporter.info(
+        `Found union ${fieldName} (${valueType.toString()}) [${fieldTypeName}] ${
+          isKnown ? "known" : "unknown"
+        }`
+      );
+      const map: SpecialFieldMap = new Map();
+      const containedTypes = fieldType.getTypes();
+      containedTypes.forEach((type) => {
+        const unionFieldType = getRealType(type);
+        const isKnown = knownTypes.has(unionFieldType.name);
+        reporter.info(
+          `Union ${fieldName} ${unionFieldType.name} ${
+            isKnown ? "known" : "unknown"
+          }`
+        );
+        if (!isKnown) {
+          const entries = walkType(
+            type,
+            markdownFieldsMap,
+            knownTypes,
+            reporter,
+            false,
+            topLevelTypeName
+          );
+          if (entries) {
+            map.set(type.name, entries);
+          }
+        } else {
+          reporter.info(`Not walking known child ${type.name}`);
+        }
+      });
+      if (map.size > 0) {
+        console.log("new map for", fieldName, map);
+        specialFields.push({ fieldName, type: "Union", value: map });
       }
-    });
-    if (fields.length) {
-      richTextMap.set(type.name, fields);
+    } else if (!isKnown && isObjectType(fieldType)) {
+      reporter.info(
+        `Found object ${fieldName} (${valueType.toString()}) [${fieldTypeName}] ${
+          isKnown ? "known" : "unknown"
+        }`
+      );
+      reporter.info(
+        `Walking object ${fieldName}: (${fieldTypeName}) (known ${isKnown}, isScalar ${isScalar}, isEnum ${isEnum}, isObject ${isObjectType(
+          fieldType
+        )})`
+      );
+
+      const entries = walkType(
+        fieldType,
+        markdownFieldsMap,
+        knownTypes,
+        reporter,
+        false,
+        topLevelTypeName
+      );
+      if (entries) {
+        specialFields.push({ fieldName, type: "Object", value: entries });
+      }
+    } else if (!isKnown && !isScalar && !isEnum) {
+      reporter.warn(
+        `What to do with field ${fieldName}: (${fieldType}) ${fieldName} (known ${isKnown}, isScalar ${isScalar}, isEnum ${isEnum}, isObject ${isObjectType(
+          fieldType
+        )})`
+      );
     }
   });
-  return richTextMap;
+  if (specialFields.length > 0) {
+    return specialFields;
+  }
+}
+
+function walkNodesToFindImportantFields(
+  { schema }: ISchemaInformation,
+  markdownFieldsMap: { [key: string]: string[] },
+  reporter: Reporter
+) {
+  const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
+  const possibleTypes = schema.getPossibleTypes(nodeInterface);
+  const knownTypes = new Set(possibleTypes.map((t) => t.name));
+  console.log("known types", knownTypes);
+
+  const specialFieldsMap = new Map<string, SpecialFieldEntry[]>();
+
+  possibleTypes.forEach((type) => {
+    const entries = walkType(
+      type,
+      markdownFieldsMap,
+      knownTypes,
+      reporter,
+      true,
+      type.name
+    );
+    if (entries) {
+      console.log("entries for ${type.name}", entries);
+      specialFieldsMap.set(type.name, entries);
+    }
+  });
+
+  return specialFieldsMap;
 }
 
 async function initializeGlobalState(
@@ -130,8 +265,13 @@ async function initializeGlobalState(
   }
 
   const schemaInformation = await retrieveSchema(args, options);
+
   stateCache.schemaInformation = schemaInformation;
-  stateCache.richTextMap = identifyRichTextNodes(schemaInformation);
+  stateCache.specialFields = walkNodesToFindImportantFields(
+    schemaInformation,
+    options.markdownFields,
+    reporter
+  );
 }
 
 const pluginInitSupport = calculatePluginInit();

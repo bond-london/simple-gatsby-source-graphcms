@@ -1,6 +1,5 @@
 import { extname, basename } from "path";
-import { NodeInput, SourceNodesArgs } from "gatsby";
-import { GraphQLField, GraphQLObjectType } from "graphql";
+import { NodeInput, SourceNodesArgs, NodePluginArgs } from "gatsby";
 import {
   createSourcingContext,
   fetchAllNodes,
@@ -10,8 +9,17 @@ import {
   IRemoteNode,
   ISourcingContext,
 } from "gatsby-graphql-source-toolkit/dist/types";
-import { IGraphCmsAsset, PluginOptions } from "./types";
-import { couldBeAList, createSourcingConfig, stateCache } from "./utils";
+import {
+  BasicFieldType,
+  GraphCMS_Node,
+  IGraphCmsAsset,
+  isSpecialField,
+  isSpecialObject,
+  isSpecialUnion,
+  PluginOptions,
+  SpecialFieldEntry,
+} from "./types";
+import { createSourcingConfig, stateCache } from "./utils";
 import { createRemoteFileNode } from "gatsby-source-filesystem";
 import { Sema } from "async-sema";
 import { ElementNode, RichTextContent } from "@graphcms/rich-text-types";
@@ -182,7 +190,7 @@ async function processNodesOfType(
   context: ISourcingContext,
   remoteTypeName: string,
   remoteNodes: AsyncIterable<IRemoteNode>,
-  richTextMap: Map<string, GraphQLField<any, any>[]>,
+  specialFields: SpecialFieldEntry[] | undefined,
   usedAssetRemoteIds: Set<string>
 ) {
   const typeName = context.typeNameTransform.toGatsbyTypeName(remoteTypeName);
@@ -196,7 +204,7 @@ async function processNodesOfType(
       context,
       remoteTypeName,
       remoteNode,
-      richTextMap,
+      specialFields,
       usedAssetRemoteIds
     );
 
@@ -246,22 +254,288 @@ function addAssetReferences(
   }
 }
 
+function keepExistingNodeAlive(
+  pluginOptions: PluginOptions,
+  context: ISourcingContext,
+  remoteTypeName: string,
+  specialFields: SpecialFieldEntry[] | undefined,
+  usedAssetRemoteIds: Set<string>,
+  existingNode: BasicFieldType,
+  namePrefix: string
+) {
+  const { typePrefix, buildMarkdownNodes, cleanupRtf } = pluginOptions;
+  const { gatsbyApi } = context;
+  const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
+  const { touchNode, createNode } = actions;
+
+  specialFields?.forEach((entry) => {
+    const name = entry.fieldName;
+    const value = existingNode[name];
+    if (!value) return;
+    const fullName = namePrefix + name;
+
+    if (isSpecialField(entry)) {
+      const field = entry.field;
+      switch (entry.type) {
+        case "Asset":
+          usedAssetRemoteIds.add((value as GraphCMS_Node).remoteId);
+          break;
+
+        case "Markdown": {
+          const markdownNodeFieldName = `${field}MarkdownNode`;
+          const markdownNodeId = existingNode[markdownNodeFieldName] as string;
+          if (markdownNodeId) {
+            const markdownNode = getNode(markdownNodeId);
+            if (markdownNode) {
+              touchNode(markdownNode);
+            } else {
+              reporter.warn(`Failed to find markdown node ${markdownNodeId}`);
+            }
+          } else {
+            reporter.warn(`No markdown node for ${field}`);
+          }
+        }
+        case "RichText": {
+          const processField = (field: RichTextField) => {
+            addAssetReferences(field, usedAssetRemoteIds);
+            if (buildMarkdownNodes) {
+              const markdownNodeId = field.markdownNode;
+              if (markdownNodeId) {
+                const markdownNode = getNode(markdownNodeId);
+                if (markdownNode) {
+                  touchNode(markdownNode);
+                }
+              }
+            }
+          };
+          if (Array.isArray(value)) {
+            value.forEach((field) => processField(field as RichTextField));
+          } else {
+            processField(value as RichTextField);
+          }
+        }
+      }
+    } else if (isSpecialUnion(entry)) {
+      const process = (value: any) => {
+        entry.value.forEach((fields) => {
+          keepExistingNodeAlive(
+            pluginOptions,
+            context,
+            remoteTypeName,
+            fields,
+            usedAssetRemoteIds,
+            value as BasicFieldType,
+            fullName
+          );
+        });
+      };
+      if (Array.isArray(value)) {
+        value.forEach(process);
+      } else {
+        process(value);
+      }
+    } else if (isSpecialObject(entry)) {
+      const process = (value: any) => {
+        keepExistingNodeAlive(
+          pluginOptions,
+          context,
+          remoteTypeName,
+          entry.value,
+          usedAssetRemoteIds,
+          value as BasicFieldType,
+          fullName
+        );
+      };
+      if (Array.isArray(value)) {
+        value.forEach(process);
+      } else {
+        process(value);
+      }
+    }
+  });
+}
+
+function processRichTextField(
+  field: RichTextField,
+  fieldName: string,
+  parentId: string,
+  usedAssetRemoteIds: Set<string>,
+  { cleanupRtf, buildMarkdownNodes, typePrefix }: PluginOptions,
+  { actions: { createNode }, createContentDigest }: NodePluginArgs
+) {
+  addAssetReferences(field, usedAssetRemoteIds);
+  if (cleanupRtf) {
+    const raw = field.raw || field.json;
+    if (raw) {
+      field.cleaned = cleanupRTFContent(raw);
+    }
+  }
+  if (buildMarkdownNodes) {
+    const content = field.markdown;
+    if (content) {
+      const markdownNode = {
+        id: `${fieldName}MarkdownNode:${parentId}`,
+        parent: parentId,
+        internal: {
+          type: `${typePrefix}MarkdownNode`,
+          mediaType: "text/markdown",
+          content,
+          contentDigest: createContentDigest(content),
+        },
+      };
+      createNode(markdownNode);
+      field.markdownNode = markdownNode.id;
+    }
+  }
+}
+
+function createSpecialNodes(
+  pluginOptions: PluginOptions,
+  context: ISourcingContext,
+  remoteTypeName: string,
+  specialFields: SpecialFieldEntry[] | undefined,
+  usedAssetRemoteIds: Set<string>,
+  id: string,
+  node: BasicFieldType,
+  namePrefix: string,
+  dump = false
+) {
+  const { typePrefix, buildMarkdownNodes, cleanupRtf } = pluginOptions;
+  const { gatsbyApi } = context;
+  const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
+  const { touchNode, createNode } = actions;
+
+  specialFields?.forEach((entry) => {
+    const name = entry.fieldName;
+    const fullName = namePrefix + name;
+    const value = node[name];
+    if (dump) {
+      reporter.info(
+        `Got value for ${id} ${name} as "${value}" [${JSON.stringify(node)}]`
+      );
+    }
+    if (!value) return;
+
+    if (isSpecialField(entry)) {
+      const field = entry.field;
+      switch (entry.type) {
+        case "Asset":
+          {
+            const remoteId = (value as GraphCMS_Node).remoteId;
+            reporter.info(
+              `Adding asset remote id ${remoteId} for ${namePrefix} ${name}`
+            );
+            usedAssetRemoteIds.add(remoteId);
+          }
+          break;
+
+        case "Markdown": {
+          const content = value as string;
+          if (content) {
+            const markdownNode = {
+              id: `${fullName}MarkdownNode:${id}`,
+              parent: id,
+              internal: {
+                type: `${typePrefix}MarkdownNode`,
+                mediaType: "text/markdown",
+                content,
+                contentDigest: createContentDigest(content),
+              },
+            };
+            createNode(markdownNode);
+            node[`${name}MarkdownNode`] = markdownNode.id;
+          }
+        }
+        case "RichText": {
+          if (value) {
+            if (Array.isArray(value)) {
+              value.forEach((field) =>
+                processRichTextField(
+                  field as RichTextField,
+                  fullName,
+                  id,
+                  usedAssetRemoteIds,
+                  pluginOptions,
+                  gatsbyApi
+                )
+              );
+            } else {
+              processRichTextField(
+                value as RichTextField,
+                fullName,
+                id,
+                usedAssetRemoteIds,
+                pluginOptions,
+                gatsbyApi
+              );
+            }
+          }
+        }
+      }
+    } else if (isSpecialUnion(entry)) {
+      reporter.info(
+        `Got union for ${entry.fieldName}: ${JSON.stringify(value)}`
+      );
+      const process = (value: any) => {
+        entry.value.forEach((fields, key) => {
+          reporter.info(
+            `Looking at union nodes for ${fullName} ${key} ${fields
+              .map((v) => v.fieldName)
+              .join(",")}`
+          );
+          createSpecialNodes(
+            pluginOptions,
+            context,
+            remoteTypeName,
+            fields,
+            usedAssetRemoteIds,
+            id,
+            value as BasicFieldType,
+            fullName,
+            true
+          );
+        });
+      };
+      if (Array.isArray(value)) {
+        value.forEach(process);
+      } else {
+        process(value);
+      }
+    } else if (isSpecialObject(entry)) {
+      reporter.info(`Looking at object nodes for ${fullName}`);
+      const process = (value: any) => {
+        createSpecialNodes(
+          pluginOptions,
+          context,
+          remoteTypeName,
+          entry.value,
+          usedAssetRemoteIds,
+          id,
+          value as BasicFieldType,
+          fullName
+        );
+      };
+      if (Array.isArray(value)) {
+        value.forEach(process);
+      } else {
+        process(value);
+      }
+    }
+  });
+}
+
 function createOrTouchNode(
   pluginOptions: PluginOptions,
   context: ISourcingContext,
   remoteTypeName: string,
   remoteNode: IRemoteNode,
-  richTextMap: Map<string, GraphQLField<any, any>[]>,
+  specialFields: SpecialFieldEntry[] | undefined,
   usedAssetRemoteIds: Set<string>
 ) {
-  const { typePrefix, markdownFields, buildMarkdownNodes, cleanupRtf } =
-    pluginOptions;
+  const { typePrefix, buildMarkdownNodes, cleanupRtf } = pluginOptions;
   const { gatsbyApi } = context;
   const { actions, createContentDigest, getNode, reporter } = gatsbyApi;
   const { touchNode, createNode } = actions;
-  const richTextFields = richTextMap.get(remoteTypeName);
-
-  const thisMarkdownFields = markdownFields[remoteTypeName];
 
   const def = context.gatsbyNodeDefs.get(remoteTypeName);
   if (!def) {
@@ -273,41 +547,15 @@ function createOrTouchNode(
   if (existingNode) {
     if (contentDigest === existingNode.internal.contentDigest) {
       touchNode(existingNode);
-      thisMarkdownFields?.forEach((field) => {
-        const markdownNodeField = `${field}MarkdownNode`;
-        const markdownNodeId = existingNode[markdownNodeField] as string;
-        if (markdownNodeId) {
-          const markdownNode = getNode(markdownNodeId);
-          if (markdownNode) {
-            touchNode(markdownNode);
-          }
-        }
-      });
-
-      if (richTextFields) {
-        richTextFields.forEach((graphqlField) => {
-          const value = existingNode[graphqlField.name];
-          if (value) {
-            const processField = (field: RichTextField) => {
-              addAssetReferences(field, usedAssetRemoteIds);
-              if (buildMarkdownNodes) {
-                const markdownNodeId = field.markdownNode;
-                if (markdownNodeId) {
-                  const markdownNode = getNode(markdownNodeId);
-                  if (markdownNode) {
-                    touchNode(markdownNode);
-                  }
-                }
-              }
-            };
-            if (Array.isArray(value)) {
-              value.forEach((field) => processField(field as RichTextField));
-            } else {
-              processField(value as RichTextField);
-            }
-          }
-        });
-      }
+      keepExistingNodeAlive(
+        pluginOptions,
+        context,
+        remoteTypeName,
+        specialFields,
+        usedAssetRemoteIds,
+        existingNode,
+        ""
+      );
       return id;
     }
   }
@@ -322,62 +570,16 @@ function createOrTouchNode(
     },
   };
 
-  thisMarkdownFields?.forEach((field) => {
-    const content = node[field] as string;
-    if (content) {
-      const markdownNode = {
-        id: `${field}MarkdownNode:${id}`,
-        parent: node.id,
-        internal: {
-          type: `${typePrefix}MarkdownNode`,
-          mediaType: "text/markdown",
-          content,
-          contentDigest: createContentDigest(content),
-        },
-      };
-      createNode(markdownNode);
-      node[`${field}MarkdownNode`] = markdownNode.id;
-    }
-  });
-
-  if (richTextFields) {
-    richTextFields.forEach((graphqlField) => {
-      const value = node[graphqlField.name];
-      if (value) {
-        const processField = (field: RichTextField) => {
-          addAssetReferences(field, usedAssetRemoteIds);
-          if (cleanupRtf) {
-            const raw = field.raw || field.json;
-            if (raw) {
-              field.cleaned = cleanupRTFContent(raw);
-            }
-          }
-          if (buildMarkdownNodes) {
-            const content = field.markdown;
-            if (content) {
-              const markdownNode = {
-                id: `${graphqlField.name}MarkdownNode:${id}`,
-                parent: node.id,
-                internal: {
-                  type: `${typePrefix}MarkdownNode`,
-                  mediaType: "text/markdown",
-                  content,
-                  contentDigest: createContentDigest(content),
-                },
-              };
-              createNode(markdownNode);
-              field.markdownNode = markdownNode.id;
-            }
-          }
-        };
-        if (Array.isArray(value)) {
-          value.forEach((field) => processField(field as RichTextField));
-        } else {
-          processField(value as RichTextField);
-        }
-      }
-    });
-  }
+  createSpecialNodes(
+    pluginOptions,
+    context,
+    remoteTypeName,
+    specialFields,
+    usedAssetRemoteIds,
+    id,
+    node,
+    ""
+  );
 
   createNode(node);
 
@@ -403,18 +605,23 @@ export async function sourceNodes(
 
   const promises: Promise<void>[] = [];
 
-  const richTextMap = stateCache.richTextMap!;
+  const specialFields = stateCache.specialFields;
+  if (!specialFields) {
+    return reporter.panic("Special fields not initialised");
+  }
   const usedAssetRemoteIds = new Set<string>();
 
   for (const remoteTypeName of context.gatsbyNodeDefs.keys()) {
+    reporter.info(`Processing nodes of type ${remoteTypeName}`);
     if (remoteTypeName !== "Asset") {
       const remoteNodes = fetchAllNodes(context, remoteTypeName);
+
       const promise = processNodesOfType(
         pluginOptions,
         context,
         remoteTypeName,
         remoteNodes,
-        richTextMap,
+        specialFields.get(remoteTypeName),
         usedAssetRemoteIds
       );
       promises.push(promise);
