@@ -17,15 +17,11 @@ export function isImage(node: Node): node is ImageElement {
   return isElement(node) && node.type === "image";
 }
 
-function cleanupTextString(text: string) {
-  return text
-    .replace(/\s+/g, " ")
-    .replace(/&nbsp;/g, "\u00a0")
-    .replace(/-/g, "\u2011");
-}
-
-function isEmptyText(text: string): boolean {
-  return text.trim().length === 0;
+function makeValidTextString(text: string): string | undefined {
+  const despaced = text.replace(/\s+/g, " ").trim();
+  if (despaced.length > 0) {
+    return despaced.replace(/&nbsp;/g, "\u00a0").replace(/-/g, "\u2011");
+  }
 }
 
 const keepEmpty: { [name: string]: boolean } = {
@@ -40,8 +36,8 @@ export function cleanupElementNode(
   const newChildren: (ElementNode | Text)[] = [];
   children.forEach((child) => {
     if (isText(child)) {
-      const cleaned = cleanupTextString(child.text);
-      if (!isEmptyText(cleaned)) {
+      const cleaned = makeValidTextString(child.text);
+      if (cleaned) {
         newChildren.push({ ...child, text: cleaned });
       }
     } else if (isElement(child)) {
