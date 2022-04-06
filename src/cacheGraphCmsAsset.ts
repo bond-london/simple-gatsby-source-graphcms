@@ -54,7 +54,7 @@ async function internalCreateLocalFileNode(
     // ignore this - just download!
   }
 
-  reporter.info(`Downloading asset ${fileName} from ${url} (${reason})`);
+  reporter.verbose(`Downloading asset ${fileName} from ${url} (${reason})`);
 
   const remoteFileNode = await retry(
     async () => {
@@ -88,7 +88,7 @@ async function internalCreateLocalFileNode(
   } catch (e) {
     reporter.panic(e as any);
   }
-  reporter.info(`Downloaded asset ${fileName} from ${url}`);
+  reporter.verbose(`Downloaded asset ${fileName} from ${url}`);
 
   return remoteFileNode.id;
 }

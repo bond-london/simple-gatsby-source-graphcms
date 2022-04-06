@@ -55,7 +55,7 @@ async function downloadAsset(
   const { createNode } = actions;
   const url = remoteAsset.url;
   const fileName = remoteAsset.fileName.replace(/[/\\?%*:|"<>]/g, "-");
-  reporter.info(`Downloading asset ${fileName} from ${url} (${reason})`);
+  reporter.verbose(`Downloading asset ${fileName} from ${url} (${reason})`);
   if (fileName !== remoteAsset.fileName) {
     reporter.warn(
       `Renaming remote filename "${remoteAsset.fileName}" to "${fileName}"`
@@ -75,7 +75,7 @@ async function downloadAsset(
     name,
     ext,
   } as any);
-  reporter.info(
+  reporter.verbose(
     `Downloaded asset ${fileName} from ${url} with id ${fileNode.id}`
   );
   return fileNode.id;
@@ -397,8 +397,7 @@ function createSpecialNodes(
   usedAssetRemoteIds: Set<string>,
   id: string,
   node: BasicFieldType,
-  namePrefix: string,
-  dump = false
+  namePrefix: string
 ) {
   const { typePrefix, buildMarkdownNodes, cleanupRtf } = pluginOptions;
   const { gatsbyApi } = context;
@@ -409,11 +408,6 @@ function createSpecialNodes(
     const name = entry.fieldName;
     const fullName = namePrefix + name;
     const value = node[name];
-    if (dump) {
-      reporter.info(
-        `Got value for ${id} ${name} as "${value}" [${JSON.stringify(node)}]`
-      );
-    }
     if (!value) return;
 
     if (isSpecialField(entry)) {
@@ -422,9 +416,6 @@ function createSpecialNodes(
         case "Asset":
           {
             const remoteId = (value as GraphCMS_Node).remoteId;
-            reporter.info(
-              `Adding asset remote id ${remoteId} for ${namePrefix} ${name}`
-            );
             usedAssetRemoteIds.add(remoteId);
           }
           break;
@@ -473,16 +464,8 @@ function createSpecialNodes(
         }
       }
     } else if (isSpecialUnion(entry)) {
-      reporter.info(
-        `Got union for ${entry.fieldName}: ${JSON.stringify(value)}`
-      );
       const process = (value: any) => {
         entry.value.forEach((fields, key) => {
-          reporter.info(
-            `Looking at union nodes for ${fullName} ${key} ${fields
-              .map((v) => v.fieldName)
-              .join(",")}`
-          );
           createSpecialNodes(
             pluginOptions,
             context,
@@ -491,8 +474,7 @@ function createSpecialNodes(
             usedAssetRemoteIds,
             id,
             value as BasicFieldType,
-            fullName,
-            true
+            fullName
           );
         });
       };
@@ -502,7 +484,6 @@ function createSpecialNodes(
         process(value);
       }
     } else if (isSpecialObject(entry)) {
-      reporter.info(`Looking at object nodes for ${fullName}`);
       const process = (value: any) => {
         createSpecialNodes(
           pluginOptions,
@@ -612,7 +593,7 @@ export async function sourceNodes(
   const usedAssetRemoteIds = new Set<string>();
 
   for (const remoteTypeName of context.gatsbyNodeDefs.keys()) {
-    reporter.info(`Processing nodes of type ${remoteTypeName}`);
+    reporter.verbose(`Processing nodes of type ${remoteTypeName}`);
     if (remoteTypeName !== "Asset") {
       const remoteNodes = fetchAllNodes(context, remoteTypeName);
 

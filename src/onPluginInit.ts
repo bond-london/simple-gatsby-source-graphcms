@@ -129,11 +129,6 @@ function walkType(
 ): SpecialFieldEntry[] | undefined {
   const specialFields: SpecialFieldEntry[] = [];
 
-  reporter.info(
-    `Looking at ${isTopLevel ? "top level" : "sub"} type: ${
-      type.name
-    } (${topLevelTypeName})`
-  );
   const typeMarkdownFields = markdownFieldsMap[type.name];
   Object.entries(type.getFields()).forEach(([fieldName, field]) => {
     const valueType = field.type as GraphQLObjectType;
@@ -150,21 +145,11 @@ function walkType(
     } else if (isMarkdownField(fieldName, typeMarkdownFields)) {
       specialFields.push({ fieldName, type: "Markdown", field });
     } else if (!isKnown && isUnionType(fieldType)) {
-      reporter.info(
-        `Found union ${fieldName} (${valueType.toString()}) [${fieldTypeName}] ${
-          isKnown ? "known" : "unknown"
-        }`
-      );
       const map: SpecialFieldMap = new Map();
       const containedTypes = fieldType.getTypes();
       containedTypes.forEach((type) => {
         const unionFieldType = getRealType(type);
         const isKnown = knownTypes.has(unionFieldType.name);
-        reporter.info(
-          `Union ${fieldName} ${unionFieldType.name} ${
-            isKnown ? "known" : "unknown"
-          }`
-        );
         if (!isKnown) {
           const entries = walkType(
             type,
@@ -177,26 +162,12 @@ function walkType(
           if (entries) {
             map.set(type.name, entries);
           }
-        } else {
-          reporter.info(`Not walking known child ${type.name}`);
         }
       });
       if (map.size > 0) {
-        console.log("new map for", fieldName, map);
         specialFields.push({ fieldName, type: "Union", value: map });
       }
     } else if (!isKnown && isObjectType(fieldType)) {
-      reporter.info(
-        `Found object ${fieldName} (${valueType.toString()}) [${fieldTypeName}] ${
-          isKnown ? "known" : "unknown"
-        }`
-      );
-      reporter.info(
-        `Walking object ${fieldName}: (${fieldTypeName}) (known ${isKnown}, isScalar ${isScalar}, isEnum ${isEnum}, isObject ${isObjectType(
-          fieldType
-        )})`
-      );
-
       const entries = walkType(
         fieldType,
         markdownFieldsMap,
@@ -229,7 +200,6 @@ function walkNodesToFindImportantFields(
   const nodeInterface = schema.getType("Node") as GraphQLAbstractType;
   const possibleTypes = schema.getPossibleTypes(nodeInterface);
   const knownTypes = new Set(possibleTypes.map((t) => t.name));
-  console.log("known types", knownTypes);
 
   const specialFieldsMap = new Map<string, SpecialFieldEntry[]>();
 
@@ -243,7 +213,6 @@ function walkNodesToFindImportantFields(
       type.name
     );
     if (entries) {
-      console.log("entries for ${type.name}", entries);
       specialFieldsMap.set(type.name, entries);
     }
   });
@@ -259,7 +228,7 @@ async function initializeGlobalState(
   const { stages } = options;
   const defaultStage = stages[0];
   if (defaultStage) {
-    reporter.info(`using default GraphCMS stage: ${defaultStage}`);
+    reporter.verbose(`using default GraphCMS stage: ${defaultStage}`);
   } else {
     reporter.panic(`no default stage for GraphCMS`);
   }
