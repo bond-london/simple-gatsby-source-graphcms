@@ -19,6 +19,8 @@ import {
 import { IGatsbyNodeConfig } from "gatsby-graphql-source-toolkit/dist/types";
 import { isGatsbyNodeLifecycleSupported } from "gatsby-plugin-utils";
 
+const specialNames = new Set(["stage", "locale", "localizations"]);
+
 async function retrieveSchema(
   gatsbyApi: NodePluginArgs,
   pluginOptions: PluginOptions
@@ -131,6 +133,9 @@ function walkType(
 
   const typeMarkdownFields = markdownFieldsMap[type.name];
   Object.entries(type.getFields()).forEach(([fieldName, field]) => {
+    if (specialNames.has(fieldName)) {
+      return;
+    }
     const valueType = field.type as GraphQLObjectType;
     const fieldType = getRealType(valueType);
     const isScalar = isScalarType(fieldType);
@@ -138,6 +143,7 @@ function walkType(
 
     const fieldTypeName = fieldType?.toString();
     const isKnown = knownTypes.has(fieldTypeName);
+
     if (isRichTextField(fieldType)) {
       specialFields.push({ fieldName, type: "RichText", field });
     } else if (isAssetField(fieldType)) {

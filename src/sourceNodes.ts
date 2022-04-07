@@ -24,7 +24,7 @@ import { createRemoteFileNode } from "gatsby-source-filesystem";
 import { Sema } from "async-sema";
 import { ElementNode, RichTextContent } from "@graphcms/rich-text-types";
 import { cleanupRTFContent } from "./rtf";
-import { createLocalFileNode } from "./cacheGraphCmsAsset";
+import { createLocalFileNode, getLocalFileName } from "./cacheGraphCmsAsset";
 
 function isAssetUsed(node: IGraphCmsAsset, usedAssetRemoteIds: Set<string>) {
   const fields = Object.entries(node);
@@ -54,13 +54,7 @@ async function downloadAsset(
   const { actions, reporter, createNodeId, getCache, store } = gatsbyApi;
   const { createNode } = actions;
   const url = remoteAsset.url;
-  const fileName = remoteAsset.fileName.replace(/[/\\?%*:|"<>]/g, "-");
-  reporter.verbose(`Downloading asset ${fileName} from ${url} (${reason})`);
-  if (fileName !== remoteAsset.fileName) {
-    reporter.warn(
-      `Renaming remote filename "${remoteAsset.fileName}" to "${fileName}"`
-    );
-  }
+  const fileName = getLocalFileName(remoteAsset, reporter);
   const ext = fileName && extname(fileName);
   const name = fileName && basename(fileName, ext);
 

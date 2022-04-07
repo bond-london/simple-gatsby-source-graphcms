@@ -7,7 +7,20 @@ import {
   createRemoteFileNode,
 } from "gatsby-source-filesystem";
 import { atomicCopyFile, retry } from "./utils";
+import { Reporter } from "gatsby";
 
+export function getLocalFileName(
+  remoteAsset: IGraphCmsAsset,
+  reporter: Reporter
+): string {
+  const fileName = remoteAsset.fileName.replace(/[/\s\\?%*:|"<>]/g, "-");
+  if (fileName !== remoteAsset.fileName) {
+    reporter.warn(
+      `Renaming remote filename "${remoteAsset.fileName}" to "${fileName}"`
+    );
+  }
+  return fileName;
+}
 async function internalCreateLocalFileNode(
   context: ISourcingContext,
   remoteAsset: IGraphCmsAsset,
@@ -19,12 +32,7 @@ async function internalCreateLocalFileNode(
   const { createNode } = actions;
   const { localCacheDir } = pluginOptions;
   const url = remoteAsset.url;
-  const fileName = remoteAsset.fileName.replace(/[/\\?%*:|"<>]/g, "-");
-  if (fileName !== remoteAsset.fileName) {
-    reporter.warn(
-      `Renaming remote filename "${remoteAsset.fileName}" to "${fileName}"`
-    );
-  }
+  const fileName = getLocalFileName(remoteAsset, reporter);
   const ext = fileName && extname(fileName);
   const name = fileName && basename(fileName, ext);
 

@@ -229,12 +229,19 @@ export async function atomicCopyFile(
   }
 }
 
-export function getRealType(valueType: GraphQLObjectType): GraphQLObjectType {
+export function getRealType(
+  valueType: GraphQLObjectType,
+  parentType?: GraphQLObjectType,
+  level?: number
+): GraphQLObjectType {
+  // if ((level || 0) > 2) {
+  //   console.log("get real type", valueType, parentType, level);
+  // }
   if (isListType(valueType)) {
-    return getRealType(valueType.ofType);
+    return getRealType(valueType.ofType, valueType, (level || 0) + 1);
   }
   if (isNonNullType(valueType)) {
-    return getRealType(valueType.ofType);
+    return getRealType(valueType.ofType, valueType, (level || 0) + 1);
   }
   return valueType;
 }
