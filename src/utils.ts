@@ -6,6 +6,7 @@ import {
   compileNodeQueries,
   readOrGenerateDefaultFragments,
   wrapQueryExecutorWithQueue,
+  generateDefaultFragments,
 } from "gatsby-graphql-source-toolkit";
 import {
   IQueryExecutionArgs,
@@ -150,9 +151,12 @@ export async function createSourcingConfig(
   const execute = createExecutor(gatsbyApi, pluginOptions);
   const { schema, gatsbyNodeTypes } = schemaConfig;
 
-  const fragmentsDir = `${process.cwd()}/${fragmentsPath}`;
-
-  await mkdir(fragmentsDir, { recursive: true });
+  const fragmentsDir = fragmentsPath
+    ? `${process.cwd()}/${fragmentsPath}`
+    : undefined;
+  if (fragmentsDir) {
+    await mkdir(fragmentsDir, { recursive: true });
+  }
 
   const addSystemFieldArguments = (field: GraphQLField<any, any>) => {
     if (["createdAt", "publishedAt", "updatedAt"].includes(field.name)) {
@@ -160,11 +164,14 @@ export async function createSourcingConfig(
     }
   };
 
-  const fragments = await readOrGenerateDefaultFragments(fragmentsDir, {
+  const fragmentsConfig = {
     schema,
     gatsbyNodeTypes,
     defaultArgumentValues: [addSystemFieldArguments],
-  });
+  };
+  const fragments = fragmentsDir
+    ? await readOrGenerateDefaultFragments(fragmentsDir, fragmentsConfig)
+    : generateDefaultFragments(fragmentsConfig);
 
   const documents = compileNodeQueries({
     schema,

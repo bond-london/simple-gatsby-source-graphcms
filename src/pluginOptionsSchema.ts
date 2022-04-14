@@ -31,11 +31,9 @@ export function pluginOptionsSchema(
         `The endpoint URL for the GraphCMS project. This can be found in the [project settings UI](https://graphcms.com/docs/guides/concepts/apis#working-with-apis)`
       )
       .required(),
-    fragmentsPath: Joi.string()
-      .description(
-        `The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts.`
-      )
-      .default(`graphcms-fragments`),
+    fragmentsPath: Joi.string().description(
+      `The local project path where generated query fragments are saved. This is relative to your current working directory. If using multiple instances of the source plugin, you **must** provide a value here to prevent type and/or fragment conflicts. If this is not set, fragments are not saved`
+    ),
     locales: Joi.array()
       .description(
         `An array of locale key strings from your GraphCMS project. You can read more about working with localisation in GraphCMS [here](https://graphcms.com/docs/guides/concepts/i18n).`

@@ -10,7 +10,7 @@ export interface PluginOptions {
   downloadAllAssets: boolean;
   skipUnusedAssets: boolean;
   endpoint: string;
-  fragmentsPath: string;
+  fragmentsPath?: string;
   stages: string[];
   token: string;
   typePrefix: string;
