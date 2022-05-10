@@ -121,6 +121,11 @@ async function createOrTouchAsset(
   if (!def) {
     throw new Error(`Cannot get definition for Asset`);
   }
+
+  const asset = remoteNode as IGraphCmsAsset;
+  const isUsed = isAssetUsed(asset, usedAssetRemoteIds);
+  remoteNode.isUsed = isUsed;
+
   let reason: string | undefined;
   const contentDigest = createContentDigest(remoteNode);
   const id = context.idTransform.remoteNodeToGatsbyId(remoteNode, def);
@@ -157,10 +162,7 @@ async function createOrTouchAsset(
     },
   };
 
-  const asset = remoteNode as IGraphCmsAsset;
-  const shouldDownload =
-    !dontDownload &&
-    (!skipUnusedAssets || isAssetUsed(asset, usedAssetRemoteIds));
+  const shouldDownload = !dontDownload && (!skipUnusedAssets || isUsed);
   if (shouldDownload) {
     try {
       const localFileId = await (localCache
