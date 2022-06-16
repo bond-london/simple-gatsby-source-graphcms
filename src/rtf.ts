@@ -18,7 +18,7 @@ export function isImage(node: Node): node is ImageElement {
 }
 
 function makeValidTextString(text: string): string | undefined {
-  const despaced = text.replace(/\s+/g, " ");
+  const despaced = text.replace(/[\r\t\f\v ]+/g, " ");
   if (despaced.length === 1 && despaced[0] === " ") return;
   if (despaced.length > 0) {
     return despaced.replace(/&nbsp;/g, "\u00a0").replace(/-/g, "\u2011");
