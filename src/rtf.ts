@@ -18,7 +18,10 @@ export function isImage(node: Node): node is ImageElement {
 }
 
 function makeValidTextString(text: string): string | undefined {
-  const despaced = text.replace(/[\r\t\f\v ]+/g, " ");
+  const despaced = text.replace(
+    /[\r\t\f\v \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g,
+    " "
+  );
   if (despaced.length === 1 && despaced[0] === " ") return;
   if (despaced.length > 0) {
     return despaced.replace(/&nbsp;/g, "\u00a0").replace(/-/g, "\u2011");
