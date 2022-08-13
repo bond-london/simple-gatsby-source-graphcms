@@ -21,6 +21,7 @@ import {
   ExecutionResult,
   isNonNullType,
   isListType,
+  SelectionSetNode,
 } from "graphql";
 
 export const stateCache: PluginState = {};
@@ -82,6 +83,10 @@ function postprocessData(
   return { ...result, data: updatedData };
 }
 
+interface GraphCMSResponse {
+  errors?: string[];
+}
+
 export function createExecutor(
   gatsbyApi: NodePluginArgs,
   pluginOptions: PluginOptions
@@ -105,21 +110,21 @@ export function createExecutor(
         if (!response.ok) {
           return response.text().then((t) => {
             return reporter.panic(
-              `gatsby-source-graphcms: Problem building GraphCMS nodes: "${query}"`,
+              `gatsby-source-graphcms: Response not ok building GraphCMS nodes: "${query}"`,
               new Error(response.statusText)
             );
           });
         }
 
-        return response.json();
+        return response.json() as GraphCMSResponse;
       })
       .then((response) => {
         if (response.errors) {
           return reporter.panic(
-            `gatsby-source-graphcms: Errors building GraphCMS nodes: "${query}" (${JSON.stringify(
+            `gatsby-source-graphcms: Response errors building GraphCMS nodes: "${query}" (${JSON.stringify(
               response.errors
             )})`,
-            new Error(response.errors)
+            new Error(response.errors as any)
           );
         }
 
@@ -131,7 +136,7 @@ export function createExecutor(
       })
       .catch((error) => {
         return reporter.panic(
-          `gatsby-source-graphcms: Error building GraphCMS nodes: "${query}"`,
+          `gatsby-source-graphcms: Error postprocessing GraphCMS nodes: "${query}"`,
           new Error(error)
         );
       });

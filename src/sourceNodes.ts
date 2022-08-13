@@ -194,8 +194,9 @@ async function processNodesOfType(
   const existingSet = new Set(existing.map((e) => e.id));
   let existingNodes = 0;
   let newNodes = 0;
+  let touchedCount = 0;
   for await (const remoteNode of remoteNodes) {
-    const newId = createOrTouchNode(
+    const { id: newId, touched } = createOrTouchNode(
       pluginOptions,
       context,
       remoteTypeName,
@@ -203,6 +204,8 @@ async function processNodesOfType(
       specialFields,
       usedAssetRemoteIds
     );
+
+    if (touched) touchedCount++;
 
     if (existingSet.delete(newId)) {
       existingNodes++;
@@ -222,7 +225,7 @@ async function processNodesOfType(
     });
   }
   context.gatsbyApi.reporter.verbose(
-    `Processed ${newNodes} new, ${existingNodes} existing and ${oldNodes} old nodes for ${remoteTypeName}. Deleted ${deletedNodes}.`
+    `Processed ${newNodes} new, ${touchedCount} touched, ${existingNodes} existing and ${oldNodes} old nodes for ${remoteTypeName}. Deleted ${deletedNodes}.`
   );
 }
 
@@ -533,7 +536,7 @@ function createOrTouchNode(
         existingNode,
         ""
       );
-      return id;
+      return { id, touched: true };
     }
   }
 
@@ -560,7 +563,7 @@ function createOrTouchNode(
 
   createNode(node);
 
-  return id;
+  return { id, touched: false };
 }
 
 export async function sourceNodes(
