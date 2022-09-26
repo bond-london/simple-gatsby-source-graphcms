@@ -1,3 +1,5 @@
+Merged with https://github.com/bond-london/bond-theme-development
+
 <h2 align="center">@bond-london/simple-gatsby-source-graphcms</h2>
 
 <p align="center">A port/rebuild of the official gatsby graphcms source plugin</p>
